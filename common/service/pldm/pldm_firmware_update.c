@@ -38,6 +38,7 @@
 #include "ds160pt801.h"
 #include "tda38741.h"
 #include "mp2988.h"
+#include "mp2891.h"
 
 LOG_MODULE_DECLARE(pldm);
 
@@ -239,7 +240,11 @@ uint8_t pldm_vr_update(void *fw_update_param)
 	} else if ((!strncmp(p->comp_version_str, KEYWORD_VR_RAA229620,
 			     ARRAY_SIZE(KEYWORD_VR_RAA229620) - 1)) ||
 		   (!strncmp(p->comp_version_str, KEYWORD_VR_RAA229621,
-			     ARRAY_SIZE(KEYWORD_VR_RAA229621) - 1))) {
+			     ARRAY_SIZE(KEYWORD_VR_RAA229621) - 1)) ||
+		   (!strncmp(p->comp_version_str, KEYWORD_VR_ISL69260,
+			     ARRAY_SIZE(KEYWORD_VR_ISL69260) - 1)) ||
+		   (!strncmp(p->comp_version_str, KEYWORD_VR_RAA228238,
+			     ARRAY_SIZE(KEYWORD_VR_RAA228238) - 1))) {
 		if (raa229621_fwupdate(p->bus, p->addr, hex_buff, fw_update_cfg.image_size) ==
 		    false)
 			goto exit;
@@ -266,6 +271,10 @@ uint8_t pldm_vr_update(void *fw_update_param)
 	} else if (!strncmp(p->comp_version_str, KEYWORD_VR_MP2988,
 			    ARRAY_SIZE(KEYWORD_VR_MP2988) - 1)) {
 		if (mp2988_fwupdate(p->bus, p->addr, hex_buff, fw_update_cfg.image_size) == false)
+			goto exit;
+	} else if (!strncmp(p->comp_version_str, KEYWORD_VR_MP2891,
+			    ARRAY_SIZE(KEYWORD_VR_MP2891) - 1)) {
+		if (mp2891_fwupdate(p->bus, p->addr, hex_buff, fw_update_cfg.image_size) == false)
 			goto exit;
 	} else {
 		LOG_ERR("Non-support VR detected with component string %s!",

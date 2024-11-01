@@ -584,7 +584,8 @@ static void state_update(uint8_t state)
 	if (state == STATE_IDLE) {
 		k_timer_stop(&update_mode_timer);
 	} else {
-		k_timer_start(&update_mode_timer, K_SECONDS(PLDM_FW_UPDATE_MODE_TIMEOUT), K_NO_WAIT);
+		k_timer_start(&update_mode_timer, K_SECONDS(PLDM_FW_UPDATE_MODE_TIMEOUT),
+			      K_NO_WAIT);
 	}
 }
 
@@ -599,7 +600,8 @@ static void pldm_status_reset()
 	keep_update_flag = false;
 }
 
-static void exit_update_mode() {
+static void exit_update_mode()
+{
 	printk("PLDM update mode timeout, exiting update mode...\n");
 	pldm_status_reset();
 }
@@ -851,7 +853,8 @@ void req_fw_update_handler(void *mctp_p, void *ext_params, void *arg)
 
 		req.offset = update_param.next_ofs;
 		req.length = update_param.next_len;
-		k_timer_start(&update_mode_timer, K_SECONDS(PLDM_FW_UPDATE_MODE_TIMEOUT), K_NO_WAIT);
+		k_timer_start(&update_mode_timer, K_SECONDS(PLDM_FW_UPDATE_MODE_TIMEOUT),
+			      K_NO_WAIT);
 
 	} while (1);
 

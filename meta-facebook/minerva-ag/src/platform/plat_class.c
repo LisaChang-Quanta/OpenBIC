@@ -28,10 +28,14 @@ LOG_MODULE_REGISTER(plat_class);
 #define AEGIS_CPLD_ADDR (0x4C >> 1)
 #define I2C_BUS_CPLD I2C_BUS5
 #define AEGIS_CPLD_VR_VENDOR_TYPE_REG 0x1C
+#define AEGIS_CPLD_BOARD_REV_ID_REG 0x1B
+#define AEGIS_CPLD_BOARD_TYPE_REG 0x1A
 
 static uint8_t vr_vender_type = VR_VENDOR_UNKNOWN;
 static uint8_t vr_type = VR_UNKNOWN;
 static uint8_t ubc_type = UBC_UNKNOWN;
+static uint8_t board_stage = BOARD_STAGE_UNKNOWN;
+static uint8_t board_type = BOARD_TYPE_UNKNOWN;
 
 bool plat_read_cpld(uint8_t offset, uint8_t *data)
 {
@@ -54,7 +58,63 @@ bool plat_read_cpld(uint8_t offset, uint8_t *data)
 	return true;
 }
 
-void get_vr_vendor_type(void)
+void init_board_type(void)
+{
+	uint8_t board_type_data = BOARD_TYPE_UNKNOWN;
+	//get CPLD BOARD_TYPE
+	if (!plat_read_cpld(AEGIS_CPLD_BOARD_TYPE_REG, &board_type_data)) {
+		LOG_ERR("Failed to get CPLD BOARD_TYPE 0x%02X", AEGIS_CPLD_BOARD_TYPE_REG);
+	}
+
+	//print board type word
+	switch (board_type_data) {
+	case MINERVA_AEGIS_BD:
+		board_type = MINERVA_AEGIS_BD;
+		LOG_INF("BOARD_TYPE(0x%02X) = AEGIS_BD", board_type);
+		break;
+	case MINERVA_EVB_BD:
+		board_type = MINERVA_EVB_BD;
+		LOG_INF("BOARD_TYPE(0x%02X) = EVB_BD", board_type);
+		break;
+	default:
+		LOG_INF("BOARD_TYPE = 0x%02X", board_type_data);
+		break;
+	}
+}
+
+void init_board_stage(void)
+{
+	uint8_t board_stage_data = BOARD_STAGE_UNKNOWN;
+	//get CPLD BOARD_STAGE
+	if (!plat_read_cpld(AEGIS_CPLD_BOARD_REV_ID_REG, &board_stage_data)) {
+		LOG_ERR("Failed to get CPLD BOARD_STAGE 0x%02X", AEGIS_CPLD_BOARD_REV_ID_REG);
+	}
+
+	//print board stage word
+	switch (board_stage_data) {
+	case FAB1_EVT:
+		board_stage = FAB1_EVT;
+		LOG_INF("BOARD_STAGE(0x%02X) = EVT", board_stage);
+		break;
+	case FAB2_DVT:
+		board_stage = FAB2_DVT;
+		LOG_INF("BOARD_STAGE(0x%02X) = DVT", board_stage);
+		break;
+	case FAB3_PVT:
+		board_stage = FAB3_PVT;
+		LOG_INF("BOARD_STAGE(0x%02X) = PVT", board_stage);
+		break;
+	case FAB4_MP:
+		board_stage = FAB4_MP;
+		LOG_INF("BOARD_STAGE(0x%02X) = MP", board_stage);
+		break;
+	default:
+		LOG_INF("BOARD_STAGE = 0x%02X", board_stage_data);
+		break;
+	}
+}
+
+void init_vr_vendor_type(void)
 {
 	//get CPLD VR_VENDOR_TYPE
 	if (!plat_read_cpld(AEGIS_CPLD_VR_VENDOR_TYPE_REG, &vr_vender_type)) {
@@ -63,39 +123,107 @@ void get_vr_vendor_type(void)
 
 	LOG_INF("VR_VENDOR_TYPE = 0x%02X", vr_vender_type);
 
-	switch (vr_vender_type) {
-	case DELTA_UBC_AND_MPS_VR:
-		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-		vr_type = VR_MPS_MP2971_MP2891;
-		LOG_INF("VR_VENDOR_TYPE 0 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
+	switch (board_stage) {
+	case FAB1_EVT:
+		switch (vr_vender_type) {
+		case DELTA_UBC_AND_MPS_VR:
+			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+			vr_type = VR_MPS_MP2971_MP2891;
+			break;
+		case DELTA_UBC_AND_RNS_VR:
+			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+			vr_type = VR_RNS_ISL69260_RAA228238;
+			break;
+		case MPS_UBC_AND_MPS_VR:
+			ubc_type = UBC_MPS_MPC12109;
+			vr_type = VR_MPS_MP2971_MP2891;
+			break;
+		case MPS_UBC_AND_RNS_VR:
+			ubc_type = UBC_MPS_MPC12109;
+			vr_type = VR_RNS_ISL69260_RAA228238;
+			break;
+		case FLEX_UBC_AND_MPS_VR:
+			ubc_type = UBC_FLEX_BMR313;
+			vr_type = VR_MPS_MP2971_MP2891;
+			break;
+		case FLEX_UBC_AND_RNS_VR:
+			ubc_type = UBC_FLEX_BMR313;
+			vr_type = VR_RNS_ISL69260_RAA228238;
+			break;
+		default:
+			LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
+			break;
+		}
+		break; //case FAB1_EVT
+	case FAB2_DVT:
+	case FAB3_PVT:
+	case FAB4_MP:
+		switch (vr_vender_type) {
+		case DELTA_UBC_AND_MPS_VR:
+			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+			vr_type = VR_MPS_MP2971_MP29816A;
+			break;
+		case DELTA_UBC_AND_RNS_VR:
+			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+			vr_type = VR_RNS_ISL69260_RAA228249;
+			break;
+		case MPS_UBC_AND_MPS_VR:
+			ubc_type = UBC_MPS_MPC12109;
+			vr_type = VR_MPS_MP2971_MP29816A;
+			break;
+		case MPS_UBC_AND_RNS_VR:
+			ubc_type = UBC_MPS_MPC12109;
+			vr_type = VR_RNS_ISL69260_RAA228249;
+			break;
+		case FLEX_UBC_AND_MPS_VR:
+			ubc_type = UBC_FLEX_BMR313;
+			vr_type = VR_MPS_MP2971_MP29816A;
+			break;
+		case FLEX_UBC_AND_RNS_VR:
+			ubc_type = UBC_FLEX_BMR313;
+			vr_type = VR_RNS_ISL69260_RAA228249;
+			break;
+		default:
+			LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
+			break;
+		}
+		break; //case FAB2_DVT, FAB3_PVT, FAB4_MP
+	default:
+		LOG_WRN("board stage not supported: 0x%x", board_stage);
 		break;
-	case DELTA_UBC_AND_RNS_VR:
-		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-		vr_type = VR_RNS_ISL69260_RAA228238;
-		LOG_INF("VR_VENDOR_TYPE 1 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
+	}
+
+	//print ubc and vr type
+	switch (ubc_type) {
+	case UBC_DELTA_U50SU4P180PMDAFC:
+		LOG_INF("UBC_TYPE(0x%02X) = DELTA_U50SU4P180PMDAFC", ubc_type);
 		break;
-	case MPS_UBC_AND_MPS_VR:
-		ubc_type = UBC_MPS_MPC12109;
-		vr_type = VR_MPS_MP2971_MP2891;
-		LOG_INF("VR_VENDOR_TYPE 2 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
+	case UBC_MPS_MPC12109:
+		LOG_INF("UBC_TYPE(0x%02X) = MPS_MPC12109", ubc_type);
 		break;
-	case MPS_UBC_AND_RNS_VR:
-		ubc_type = UBC_MPS_MPC12109;
-		vr_type = VR_RNS_ISL69260_RAA228238;
-		LOG_INF("VR_VENDOR_TYPE 3 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
-		break;
-	case FLEX_UBC_AND_MPS_VR:
-		ubc_type = UBC_FLEX_BMR313;
-		vr_type = VR_MPS_MP2971_MP2891;
-		LOG_INF("VR_VENDOR_TYPE 4 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
-		break;
-	case FLEX_UBC_AND_RNS_VR:
-		ubc_type = UBC_FLEX_BMR313;
-		vr_type = VR_RNS_ISL69260_RAA228238;
-		LOG_INF("VR_VENDOR_TYPE 5 UBC_TYPE = 0x%02X, VR_TYPE = 0x%02X", ubc_type, vr_type);
+	case UBC_FLEX_BMR313:
+		LOG_INF("UBC_TYPE(0x%02X) = FLEX_BMR313", ubc_type);
 		break;
 	default:
-		LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
+		LOG_WRN("ubc type not supported: 0x%x", ubc_type);
+		break;
+	}
+
+	switch (vr_type) {
+	case VR_MPS_MP2971_MP2891:
+		LOG_INF("VR_TYPE(0x%02X) = MPS_MP2971_MP2891", vr_type);
+		break;
+	case VR_MPS_MP2971_MP29816A:
+		LOG_INF("VR_TYPE(0x%02X) = MPS_MP2971_MP29816A", vr_type);
+		break;
+	case VR_RNS_ISL69260_RAA228238:
+		LOG_INF("VR_TYPE(0x%02X) = RNS_ISL69260_RAA228238", vr_type);
+		break;
+	case VR_RNS_ISL69260_RAA228249:
+		LOG_INF("VR_TYPE(0x%02X) = RNS_ISL69260_RAA228249", vr_type);
+		break;
+	default:
+		LOG_WRN("vr type not supported: 0x%x", vr_type);
 		break;
 	}
 }
@@ -110,7 +238,19 @@ uint8_t get_ubc_type()
 	return ubc_type;
 }
 
+uint8_t get_board_stage()
+{
+	return board_stage;
+}
+
+uint8_t get_board_type()
+{
+	return board_type;
+}
+
 void init_platform_config()
 {
-	get_vr_vendor_type();
+	init_board_type();
+	init_board_stage();
+	init_vr_vendor_type();
 }

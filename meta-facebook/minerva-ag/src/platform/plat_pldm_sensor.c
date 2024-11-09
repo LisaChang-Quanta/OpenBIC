@@ -924,7 +924,7 @@ pldm_sensor_info plat_pldm_sensor_vr_table[] = {
 			.port = I2C_BUS1,
 			.target_addr = P3V3_MP2971_ADDR,
 			.offset = PMBUS_READ_TEMPERATURE_1,
-			.access_checker = is_vr_access,
+			.access_checker = is_osfp_3v3_access,
 			.sample_count = SAMPLE_COUNT_DEFAULT,
 			.cache = 0,
 			.cache_status = PLDM_SENSOR_INITIALIZING,
@@ -994,7 +994,7 @@ pldm_sensor_info plat_pldm_sensor_vr_table[] = {
 			.port = I2C_BUS1,
 			.target_addr = P3V3_MP2971_ADDR,
 			.offset = PMBUS_READ_VOUT,
-			.access_checker = is_vr_access,
+			.access_checker = is_osfp_3v3_access,
 			.sample_count = SAMPLE_COUNT_DEFAULT,
 			.cache = 0,
 			.cache_status = PLDM_SENSOR_INITIALIZING,
@@ -1065,7 +1065,7 @@ pldm_sensor_info plat_pldm_sensor_vr_table[] = {
 			.port = I2C_BUS1,
 			.target_addr = P3V3_MP2971_ADDR,
 			.offset = PMBUS_READ_IOUT,
-			.access_checker = is_vr_access,
+			.access_checker = is_osfp_3v3_access,
 			.sample_count = SAMPLE_COUNT_DEFAULT,
 			.cache = 0,
 			.cache_status = PLDM_SENSOR_INITIALIZING,
@@ -1135,7 +1135,7 @@ pldm_sensor_info plat_pldm_sensor_vr_table[] = {
 			.port = I2C_BUS1,
 			.target_addr = P3V3_MP2971_ADDR,
 			.offset = PMBUS_READ_POUT,
-			.access_checker = is_vr_access,
+			.access_checker = is_osfp_3v3_access,
 			.sample_count = SAMPLE_COUNT_DEFAULT,
 			.cache = 0,
 			.cache_status = PLDM_SENSOR_INITIALIZING,
@@ -9042,7 +9042,7 @@ void plat_pldm_sensor_change_vr_addr()
 
 	uint8_t addr;
 
-	if (vr_type == VR_RNS_ISL69260_RAA228238) {
+	if ((vr_type == VR_RNS_ISL69260_RAA228238) || (vr_type == VR_RNS_ISL69260_RAA228249)) {
 		LOG_INF("change vr addr for RNS_ISL69260_RAA228238");
 		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
 		     index++) {
@@ -9050,7 +9050,7 @@ void plat_pldm_sensor_change_vr_addr()
 				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.num, &addr);
 			plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.target_addr = addr;
 		}
-	} else if (vr_type != VR_MPS_MP2971_MP2891) {
+	} else if ((vr_type != VR_MPS_MP2971_MP2891) || (vr_type != VR_MPS_MP2971_MP29816A)) {
 		LOG_ERR("Unable to change the VR device due to its unknown status.");
 	}
 }
@@ -9063,7 +9063,15 @@ void plat_pldm_sensor_change_vr_dev()
 		return;
 	}
 
-	if (vr_type == VR_RNS_ISL69260_RAA228238) {
+	if (vr_type == VR_MPS_MP2971_MP29816A) {
+		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
+		     index++) {
+			// if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
+			//     sensor_dev_mp2891)
+			// 	plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
+			// 		sensor_dev_mp29816a;
+		}
+	} else if (vr_type == VR_RNS_ISL69260_RAA228238) {
 		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
 		     index++) {
 			if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
@@ -9075,6 +9083,18 @@ void plat_pldm_sensor_change_vr_dev()
 				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
 					sensor_dev_raa228238;
 		}
+	} else if (vr_type == VR_RNS_ISL69260_RAA228249) {
+		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
+		     index++) {
+			if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
+			    sensor_dev_mp2971)
+				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
+					sensor_dev_isl69259;
+			// else if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
+			// 	 sensor_dev_mp2891)
+			// 	plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
+			// 		sensor_dev_raa228249;
+		}
 	} else if (vr_type != VR_MPS_MP2971_MP2891) {
 		LOG_ERR("Unable to change the VR device due to its unknown status.");
 	}
@@ -9084,7 +9104,7 @@ void plat_pldm_sensor_change_ubc_dev()
 {
 	uint8_t ubc_type = get_ubc_type();
 	if (ubc_type == UBC_UNKNOWN) {
-		LOG_ERR("Unable to change the VR device due to its unknown status.");
+		LOG_ERR("Unable to change the UBC device due to its unknown status.");
 		return;
 	}
 
@@ -9182,4 +9202,10 @@ void find_vr_addr_and_bus_and_sensor_dev_by_sensor_id(uint8_t sensor_id, uint8_t
 			return;
 		}
 	}
+}
+
+bool is_osfp_3v3_access(uint8_t sensor_num)
+{
+	/* OSFP 3V3 is only accessible on EVB */
+	return (get_board_type() == MINERVA_AEGIS_BD) ? false : is_vr_access(sensor_num);
 }

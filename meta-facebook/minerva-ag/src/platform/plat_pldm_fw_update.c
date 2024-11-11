@@ -37,6 +37,8 @@
 
 LOG_MODULE_REGISTER(plat_fwupdate);
 
+static uint8_t pldm_pre_vr_update(void *fw_update_param);
+static uint8_t pldm_post_vr_update(void *fw_update_param);
 static bool get_vr_fw_version(void *info_p, uint8_t *buf, uint8_t *len);
 void find_sensor_id_and_name_by_firmware_comp_id(uint8_t comp_identifier, uint8_t *sensor_id,
 						 char *sensor_name);
@@ -107,9 +109,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_OSFP_P3V3,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -122,9 +124,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V85_PVDD,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -137,9 +139,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V75_PVDD_CH_N,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -152,9 +154,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V75_PVDD_CH_S,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -167,9 +169,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V75_TRVDD_ZONEA,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -182,9 +184,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V75_TRVDD_ZONEB,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -197,9 +199,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P1V1_VDDC_HBM0_2_4,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -212,9 +214,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V9_TRVDD_ZONEA,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -227,9 +229,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V9_TRVDD_ZONEB,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -242,9 +244,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P1V1_VDDC_HBM1_3_5,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -257,9 +259,9 @@ pldm_fw_update_info_t PLDMUPDATE_FW_CONFIG_TABLE[] = {
 		.comp_classification = COMP_CLASS_TYPE_DOWNSTREAM,
 		.comp_identifier = AG_COMPNT_CPU_P0V8_VDDA_PCIE,
 		.comp_classification_index = 0x00,
-		.pre_update_func = NULL,
-		.update_func = NULL,
-		.pos_update_func = NULL,
+		.pre_update_func = pldm_pre_vr_update,
+		.update_func = pldm_vr_update,
+		.pos_update_func = pldm_post_vr_update,
 		.inf = COMP_UPDATE_VIA_I2C,
 		.activate_method = COMP_ACT_AC_PWR_CYCLE,
 		.self_act_func = NULL,
@@ -360,6 +362,42 @@ void load_pldmupdate_comp_config(void)
 	}
 
 	memcpy(comp_config, PLDMUPDATE_FW_CONFIG_TABLE, sizeof(PLDMUPDATE_FW_CONFIG_TABLE));
+}
+
+/* pldm pre-update func */
+static uint8_t pldm_pre_vr_update(void *fw_update_param)
+{
+	CHECK_NULL_ARG_WITH_RETURN(fw_update_param, 1);
+
+	pldm_fw_update_param_t *p = (pldm_fw_update_param_t *)fw_update_param;
+
+	/* Stop sensor polling */
+	disable_sensor_poll();
+
+	uint8_t bus = 0;
+	uint8_t addr = 0;
+	uint8_t sensor_id = 0;
+	uint8_t sensor_dev = 0;
+	char sensor_name[MAX_AUX_SENSOR_NAME_LEN] = { 0 };
+	find_sensor_id_and_name_by_firmware_comp_id(p->comp_id, &sensor_id, sensor_name);
+	find_vr_addr_and_bus_and_sensor_dev_by_sensor_id(sensor_id, &bus, &addr, &sensor_dev);
+
+	/* Get bus and target address by sensor number in sensor configuration */
+	p->bus = bus;
+	p->addr = addr;
+
+	return 0;
+}
+
+/* pldm post-update func */
+static uint8_t pldm_post_vr_update(void *fw_update_param)
+{
+	ARG_UNUSED(fw_update_param);
+
+	/* Start sensor polling */
+	enable_sensor_poll();
+
+	return 0;
 }
 
 static bool get_vr_fw_version(void *info_p, uint8_t *buf, uint8_t *len)

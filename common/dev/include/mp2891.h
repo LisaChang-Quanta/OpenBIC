@@ -18,6 +18,7 @@
 
 #include "stdint.h"
 
+bool mp2891_fwupdate(uint8_t bus, uint8_t addr, uint8_t *img_buff, uint32_t img_size);
 bool mp2891_get_fw_version(uint8_t bus, uint8_t addr, uint32_t *rev);
 
 #endif

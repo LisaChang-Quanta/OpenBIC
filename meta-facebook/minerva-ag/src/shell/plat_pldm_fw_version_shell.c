@@ -24,7 +24,10 @@
 #include "mp2971.h"
 #include "mp2891.h"
 #include "raa229621.h"
+#include "raa228249.h"
 #include "pdr.h"
+#include "mp29816a.h"
+#include "plat_pldm_sensor.h"
 
 LOG_MODULE_REGISTER(plat_pldm_fw_version_shell);
 
@@ -36,7 +39,7 @@ void cmd_get_fw_version_vr(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	/* Stop sensor polling */
-	disable_sensor_poll();
+	set_plat_sensor_polling_enable_flag(false);
 
 	shell_print(shell, "comp_id |              sensor_name               |version |remain");
 	for (int i = 0; i < get_aegis_compnt_mapping_sensor_table_count(); i++) {
@@ -94,6 +97,48 @@ void cmd_get_fw_version_vr(const struct shell *shell, size_t argc, char **argv)
 			}
 			break;
 		}
+		case VR_MPS_MP2971_MP29816A: {
+			if (sensor_dev == sensor_dev_mp2971) {
+				if (!mp2971_get_checksum(bus, addr, &version)) {
+					shell_print(shell,
+						    "The VR MPS2971 version reading failed");
+					return;
+				}
+			} else if (sensor_dev == sensor_dev_mp29816a) {
+				if (!mp29816a_get_fw_version(bus, addr, &version)) {
+					shell_print(shell,
+						    "The VR MPS29816a version reading failed");
+					return;
+				}
+			}
+			break;
+		}
+		case VR_RNS_ISL69260_RAA228249: {
+			if (sensor_dev == sensor_dev_isl69259) {
+				if (!raa229621_get_crc(bus, addr, &version)) {
+					shell_print(shell,
+						    "The VR ISL69260 version reading failed");
+					return;
+				}
+				if (raa229621_get_remaining_wr(bus, addr, (uint8_t *)&remain) < 0) {
+					shell_print(shell,
+						    "The VR ISL69260 remaining reading failed");
+					return;
+				}
+			} else if (sensor_dev == sensor_dev_raa228249) {
+				if (!raa228249_get_crc(bus, addr, &version)) {
+					shell_print(shell,
+						    "The VR RAA228249 version reading failed");
+					return;
+				}
+				if (raa228249_get_remaining_wr(bus, addr, (uint8_t *)&remain) < 0) {
+					shell_print(shell,
+						    "The VR RAA228249 remaining reading failed");
+					return;
+				}
+			}
+			break;
+		}
 		default:
 			shell_print(shell, "Unsupport VR type(%x)", type);
 			return;
@@ -103,7 +148,7 @@ void cmd_get_fw_version_vr(const struct shell *shell, size_t argc, char **argv)
 			remain = (uint8_t)((remain % 10) | (remain / 10 << 4));
 		}
 
-		if (sensor_dev == sensor_dev_mp2891) {
+		if (sensor_dev == sensor_dev_mp2891 || sensor_dev == sensor_dev_mp29816a) {
 			shell_print(shell, "%-8x|%-40s|    %04x|%04x", comp_identifier, sensor_name,
 				    version, remain);
 		} else {
@@ -113,6 +158,7 @@ void cmd_get_fw_version_vr(const struct shell *shell, size_t argc, char **argv)
 	}
 
 	/* Start sensor polling */
-	enable_sensor_poll();
+	set_plat_sensor_polling_enable_flag(true);
+
 	return;
 }

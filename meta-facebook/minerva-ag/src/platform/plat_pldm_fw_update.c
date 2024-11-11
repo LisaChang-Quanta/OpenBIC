@@ -32,8 +32,10 @@
 #include "mp2971.h"
 #include "mp2891.h"
 #include "raa229621.h"
+#include "raa228249.h"
 #include "plat_class.h"
 #include "pldm_sensor.h"
+#include "mp29816a.h"
 
 LOG_MODULE_REGISTER(plat_fwupdate);
 
@@ -372,7 +374,7 @@ static uint8_t pldm_pre_vr_update(void *fw_update_param)
 	pldm_fw_update_param_t *p = (pldm_fw_update_param_t *)fw_update_param;
 
 	/* Stop sensor polling */
-	disable_sensor_poll();
+	set_plat_sensor_polling_enable_flag(false);
 
 	uint8_t bus = 0;
 	uint8_t addr = 0;
@@ -395,7 +397,7 @@ static uint8_t pldm_post_vr_update(void *fw_update_param)
 	ARG_UNUSED(fw_update_param);
 
 	/* Start sensor polling */
-	enable_sensor_poll();
+	set_plat_sensor_polling_enable_flag(true);
 
 	return 0;
 }
@@ -457,12 +459,48 @@ static bool get_vr_fw_version(void *info_p, uint8_t *buf, uint8_t *len)
 		}
 		break;
 	}
+	case VR_MPS_MP2971_MP29816A: {
+		if (sensor_dev == sensor_dev_mp2971) {
+			if (!mp2971_get_checksum(bus, addr, &version)) {
+				LOG_ERR("The VR MPS2971 version reading failed");
+				return ret;
+			}
+		} else if (sensor_dev == sensor_dev_mp29816a) {
+			if (!mp29816a_get_fw_version(bus, addr, &version)) {
+				LOG_ERR("The VR MPS29816a version reading failed");
+				return ret;
+			}
+		}
+		break;
+	}
+	case VR_RNS_ISL69260_RAA228249: {
+		if (sensor_dev == sensor_dev_isl69259) {
+			if (!raa229621_get_crc(bus, addr, &version)) {
+				LOG_ERR("The VR ISL69260 version reading failed");
+				return ret;
+			}
+			if (raa229621_get_remaining_wr(bus, addr, (uint8_t *)&remain) < 0) {
+				LOG_ERR("The VR ISL69260 remaining reading failed");
+				return ret;
+			}
+		} else if (sensor_dev == sensor_dev_raa228249) {
+			if (!raa228249_get_crc(bus, addr, &version)) {
+				LOG_ERR("The VR RAA228249 version reading failed");
+				return ret;
+			}
+			if (raa228249_get_remaining_wr(bus, addr, (uint8_t *)&remain) < 0) {
+				LOG_ERR("The VR RAA228249 remaining reading failed");
+				return ret;
+			}
+		}
+		break;
+	}
 	default:
 		LOG_ERR("Unsupport VR type(%d)", type);
 		return ret;
 	}
 
-	if (sensor_dev == sensor_dev_mp2891)
+	if (sensor_dev == sensor_dev_mp2891|| sensor_dev == sensor_dev_mp29816a)
 		version = sys_cpu_to_be16(version);
 	else
 		version = sys_cpu_to_be32(version);
@@ -470,6 +508,8 @@ static bool get_vr_fw_version(void *info_p, uint8_t *buf, uint8_t *len)
 	const char *vr_name[] = {
 		[VR_RNS_ISL69260_RAA228238] = "Renesas ",
 		[VR_MPS_MP2971_MP2891] = "MPS ",
+		[VR_RNS_ISL69260_RAA228249] = "Renesas ",
+		[VR_MPS_MP2971_MP29816A] = "MPS ",
 	};
 
 	const char *remain_str_p = ", Remaining Write: ";
@@ -485,7 +525,7 @@ static bool get_vr_fw_version(void *info_p, uint8_t *buf, uint8_t *len)
 	memcpy(buf_p, vr_name_p, strlen(vr_name_p));
 	buf_p += strlen(vr_name_p);
 
-	if (sensor_dev == sensor_dev_mp2891)
+	if (sensor_dev == sensor_dev_mp2891 || sensor_dev == sensor_dev_mp29816a)
 		*len += bin2hex((uint8_t *)&version, 2, buf_p, 4) + strlen(vr_name_p);
 	else
 		*len += bin2hex((uint8_t *)&version, 4, buf_p, 8) + strlen(vr_name_p);

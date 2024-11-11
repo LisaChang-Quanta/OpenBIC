@@ -9066,10 +9066,10 @@ void plat_pldm_sensor_change_vr_dev()
 	if (vr_type == VR_MPS_MP2971_MP29816A) {
 		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
 		     index++) {
-			// if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
-			//     sensor_dev_mp2891)
-			// 	plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
-			// 		sensor_dev_mp29816a;
+			if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
+			    sensor_dev_mp2891)
+				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
+					sensor_dev_mp29816a;
 		}
 	} else if (vr_type == VR_RNS_ISL69260_RAA228238) {
 		for (int index = 0; index < plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
@@ -9090,10 +9090,10 @@ void plat_pldm_sensor_change_vr_dev()
 			    sensor_dev_mp2971)
 				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
 					sensor_dev_isl69259;
-			// else if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
-			// 	 sensor_dev_mp2891)
-			// 	plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
-			// 		sensor_dev_raa228249;
+			else if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type ==
+				 sensor_dev_mp2891)
+				plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.type =
+					sensor_dev_raa228249;
 		}
 	} else if (vr_type != VR_MPS_MP2971_MP2891) {
 		LOG_ERR("Unable to change the VR device due to its unknown status.");
@@ -9193,7 +9193,6 @@ void find_vr_addr_and_bus_and_sensor_dev_by_sensor_id(uint8_t sensor_id, uint8_t
 {
 	int pldm_sensor_count = 0;
 	pldm_sensor_count = plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
-	//pldm_sensor_info *plat_pldm_sensor_vr_table = plat_pldm_sensor_load(VR_SENSOR_THREAD_ID);
 	for (int index = 0; index < pldm_sensor_count; index++) {
 		if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.num == sensor_id) {
 			*vr_addr = plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.target_addr;

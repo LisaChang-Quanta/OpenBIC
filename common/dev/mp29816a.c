@@ -26,6 +26,8 @@
 
 LOG_MODULE_REGISTER(mp29816a);
 
+#define MAX_CMD_LINE 1024
+
 #define DAC_2P5MV_EN_BIT BIT(13)
 #define MFR_VID_RES_MASK GENMASK(12, 10)
 
@@ -36,7 +38,7 @@ LOG_MODULE_REGISTER(mp29816a);
 #define VR_MPS_PAGE_2 0x02
 
 #define VR_MPS_VEND_ID 0x4D5053 // ASCI: MPS
-#define MP2891_DEV_ID 0xA816
+#define mp29816a_DEV_ID 0xA816
 
 /* --------- PAGE0 ---------- */
 #define VR_REG_VENDOR_ID 0x99
@@ -46,6 +48,13 @@ LOG_MODULE_REGISTER(mp29816a);
 
 /* --------- PAGE2 ---------- */
 #define VR_REG_DEV_ID 0x1D
+struct mp29816a_data {
+	uint16_t cfg_id;
+	uint8_t page;
+	uint8_t reg_addr;
+	uint8_t reg_data[4]; // TODO: reg_val
+	uint8_t reg_len;
+};
 
 static bool mp29816a_set_page(uint8_t bus, uint8_t addr, uint8_t page)
 {
@@ -96,63 +105,104 @@ bool mp29816a_get_fw_version(uint8_t bus, uint8_t addr, uint32_t *rev)
 	return true;
 }
 
-// static bool mp29816a_get_vendor_id(uint8_t bus, uint8_t addr, uint8_t *vendor_id)
-// {
-// 	CHECK_NULL_ARG_WITH_RETURN(vendor_id, false);
+static bool mp29816a_get_vendor_id(uint8_t bus, uint8_t addr, uint8_t *vendor_id)
+{
+	CHECK_NULL_ARG_WITH_RETURN(vendor_id, false);
 
-// 	if (mp29816a_set_page(bus, addr, VR_MPS_PAGE_0) == false) {
-// 		LOG_ERR("Failed to set page before reading vendor id");
-// 		return false;
-// 	}
+	if (mp29816a_set_page(bus, addr, VR_MPS_PAGE_0) == false) {
+		LOG_ERR("Failed to set page before reading vendor id");
+		return false;
+	}
 
-// 	I2C_MSG i2c_msg = { 0 };
-// 	uint8_t retry = 3;
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
 
-// 	i2c_msg.bus = bus;
-// 	i2c_msg.target_addr = addr;
+	i2c_msg.bus = bus;
+	i2c_msg.target_addr = addr;
 
-// 	i2c_msg.tx_len = 1;
-// 	i2c_msg.rx_len = 4;
-// 	i2c_msg.data[0] = VR_REG_VENDOR_ID;
+	i2c_msg.tx_len = 1;
+	i2c_msg.rx_len = 4;
+	i2c_msg.data[0] = VR_REG_VENDOR_ID;
 
-// 	if (i2c_master_read(&i2c_msg, retry)) {
-// 		LOG_ERR("Failed to read vendor id");
-// 		return false;
-// 	}
+	if (i2c_master_read(&i2c_msg, retry)) {
+		LOG_ERR("Failed to read vendor id");
+		return false;
+	}
 
-// 	*vendor_id = (i2c_msg.data[1]) | (i2c_msg.data[2] << 8) | (i2c_msg.data[3] << 16);
+	*vendor_id = (i2c_msg.data[1]) | (i2c_msg.data[2] << 8) | (i2c_msg.data[3] << 16);
 
-// 	return true;
-// }
+	return true;
+}
 
-// static bool mp29816a_get_device_id(uint8_t bus, uint8_t addr, uint8_t *device_id)
-// {
-// 	CHECK_NULL_ARG_WITH_RETURN(device_id, false);
+static bool mp29816a_get_device_id(uint8_t bus, uint8_t addr, uint8_t *device_id)
+{
+	CHECK_NULL_ARG_WITH_RETURN(device_id, false);
 
-// 	if (mp29816a_set_page(bus, addr, VR_MPS_PAGE_2) == false) {
-// 		LOG_ERR("Failed to set page before reading device id");
-// 		return false;
-// 	}
+	if (mp29816a_set_page(bus, addr, VR_MPS_PAGE_2) == false) {
+		LOG_ERR("Failed to set page before reading device id");
+		return false;
+	}
 
-// 	I2C_MSG i2c_msg = { 0 };
-// 	uint8_t retry = 3;
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
 
-// 	i2c_msg.bus = bus;
-// 	i2c_msg.target_addr = addr;
+	i2c_msg.bus = bus;
+	i2c_msg.target_addr = addr;
 
-// 	i2c_msg.tx_len = 1;
-// 	i2c_msg.rx_len = 2;
-// 	i2c_msg.data[0] = VR_REG_DEV_ID;
+	i2c_msg.tx_len = 1;
+	i2c_msg.rx_len = 2;
+	i2c_msg.data[0] = VR_REG_DEV_ID;
 
-// 	if (i2c_master_read(&i2c_msg, retry)) {
-// 		LOG_ERR("Failed to read device id");
-// 		return false;
-// 	}
+	if (i2c_master_read(&i2c_msg, retry)) {
+		LOG_ERR("Failed to read device id");
+		return false;
+	}
 
-// 	*device_id = i2c_msg.data[0] | (i2c_msg.data[1] << 8);
+	*device_id = i2c_msg.data[0] | (i2c_msg.data[1] << 8);
 
-// 	return true;
-// }
+	return true;
+}
+
+static bool mp29816a_pre_update(uint8_t bus, uint8_t addr)
+{
+	uint8_t vend_id = 0;
+	if (mp29816a_get_vendor_id(bus, addr, &vend_id) == false) {
+		LOG_ERR("Failed to read device id");
+		return false;
+	}
+	if (vend_id != VR_MPS_VEND_ID) {
+		LOG_ERR("Invalid vendor id 0x%x", vend_id);
+		return false;
+	}
+
+	uint8_t dev_id = 0;
+	if (mp29816a_get_device_id(bus, addr, &dev_id) == false) {
+		LOG_ERR("Failed to read device id");
+		return false;
+	}
+	if (dev_id != mp29816a_DEV_ID) {
+		LOG_ERR("Invalid device id 0x%x", dev_id);
+		return false;
+	}
+	return true;
+}
+
+bool mp29816a_fwupdate(uint8_t bus, uint8_t addr, uint8_t *img_buff, uint32_t img_size)
+{
+	CHECK_NULL_ARG_WITH_RETURN(img_buff, false);
+
+	uint8_t ret = false;
+
+	if (mp29816a_pre_update(bus, addr) == false) {
+		LOG_ERR("Failed to pre-update!");
+		goto exit;
+	}
+
+	ret = true;
+exit:
+	// SAFE_FREE(dev_cfg.pdata);
+	return ret;
+}
 
 float mp29816a_get_resolution(sensor_cfg *cfg)
 {

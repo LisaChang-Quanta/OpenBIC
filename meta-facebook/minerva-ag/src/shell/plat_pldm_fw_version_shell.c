@@ -100,8 +100,7 @@ void cmd_get_fw_version_vr(const struct shell *shell, size_t argc, char **argv)
 		case VR_MPS_MP2971_MP29816A: {
 			if (sensor_dev == sensor_dev_mp2971) {
 				if (!mp2971_get_checksum(bus, addr, &version)) {
-					shell_print(shell,
-						    "The VR MPS2971 version reading failed");
+					shell_print(shell, "The VR MPS2971 version reading failed");
 					return;
 				}
 			} else if (sensor_dev == sensor_dev_mp29816a) {

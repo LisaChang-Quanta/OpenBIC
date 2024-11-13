@@ -45,8 +45,6 @@ LOG_MODULE_REGISTER(mp2891);
 
 /* --------- PAGE0 ---------- */
 #define VR_REG_VENDOR_ID 0x99
-#define VR_REG_MFR_CFG_ID 0x9E
-#define VR_MPS_REG_WRITE_PROTECT 0x10
 #define VR_REG_STAT_CML 0x7E
 
 /* --------- PAGE1 ---------- */
@@ -101,30 +99,6 @@ static bool mp2891_set_page(uint8_t bus, uint8_t addr, uint8_t page)
 
 	k_msleep(100);
 
-	return true;
-}
-
-static bool mp2891_unlock_write_protection(uint8_t bus, uint8_t addr)
-{
-	uint8_t retry = 3;
-	I2C_MSG i2c_msg = { 0 };
-
-	if (mp2891_set_page(bus, addr, VR_MPS_PAGE_0) == false) {
-		LOG_ERR("Failed to set page before unlock write protection");
-		return false;
-	}
-
-	i2c_msg.bus = bus;
-	i2c_msg.target_addr = addr;
-
-	i2c_msg.tx_len = 2;
-	i2c_msg.data[0] = VR_MPS_REG_WRITE_PROTECT;
-	i2c_msg.data[1] = 0x00; // Disable memory write protection
-
-	if (i2c_master_write(&i2c_msg, retry)) {
-		LOG_ERR("Failed to unlock write protection");
-		return false;
-	}
 	return true;
 }
 
@@ -236,35 +210,6 @@ static bool mp2891_get_device_id(uint8_t bus, uint8_t addr, uint8_t *device_id)
 	return true;
 }
 
-static bool mp2891_get_cfg_id(uint8_t bus, uint8_t addr, uint8_t *cfg_id)
-{
-	CHECK_NULL_ARG_WITH_RETURN(cfg_id, false);
-
-	if (mp2891_set_page(bus, addr, VR_MPS_PAGE_0) == false) {
-		LOG_ERR("Failed to set page before reading configure id");
-		return false;
-	}
-
-	I2C_MSG i2c_msg = { 0 };
-	uint8_t retry = 3;
-
-	i2c_msg.bus = bus;
-	i2c_msg.target_addr = addr;
-
-	i2c_msg.tx_len = 1;
-	i2c_msg.rx_len = 2;
-	i2c_msg.data[0] = VR_REG_MFR_CFG_ID;
-
-	if (i2c_master_read(&i2c_msg, retry)) {
-		LOG_ERR("Failed to read config id");
-		return false;
-	}
-
-	*cfg_id = i2c_msg.data[0] | (i2c_msg.data[1] << 8);
-
-	return true;
-}
-
 static bool mp2891_store(uint8_t bus, uint8_t addr)
 {
 	if (mp2891_set_page(bus, addr, VR_MPS_PAGE_0) == false) {
@@ -289,10 +234,8 @@ static bool mp2891_store(uint8_t bus, uint8_t addr)
 	return true;
 }
 
-static bool mp2891_pre_update(uint8_t bus, uint8_t addr, struct mp2891_config *dev_cfg)
+static bool mp2891_pre_update(uint8_t bus, uint8_t addr)
 {
-	CHECK_NULL_ARG_WITH_RETURN(dev_cfg, false);
-
 	uint8_t vend_id = 0;
 	if (mp2891_get_vendor_id(bus, addr, &vend_id) == false) {
 		LOG_ERR("Failed to read device id");
@@ -312,23 +255,6 @@ static bool mp2891_pre_update(uint8_t bus, uint8_t addr, struct mp2891_config *d
 		LOG_ERR("Invalid device id 0x%x", dev_id);
 		return false;
 	}
-
-	uint8_t cfg_id = 0;
-	if (mp2891_get_cfg_id(bus, addr, &cfg_id) == false) {
-		LOG_ERR("Failed to read config id");
-		return false;
-	}
-	if (cfg_id != MP2891_DEV_ID) {
-		LOG_ERR("Invalid configure id 0x%x", cfg_id);
-		return false;
-	}
-
-	if (mp2891_unlock_write_protection(bus, addr) == false) {
-		LOG_ERR("Failed to unlock write protection");
-		return false;
-	}
-
-	LOG_INF("Update VR from cfg_id: 0x%x to cfg_id: 0x%x", cfg_id, dev_cfg->cfg_id);
 
 	return true;
 }
@@ -454,7 +380,7 @@ bool mp2891_fwupdate(uint8_t bus, uint8_t addr, uint8_t *img_buff, uint32_t img_
 	}
 
 	/* Step2. Before update */
-	if (mp2891_pre_update(bus, addr, &dev_cfg) == false) {
+	if (mp2891_pre_update(bus, addr) == false) {
 		LOG_ERR("Failed to pre-update!");
 		goto exit;
 	}

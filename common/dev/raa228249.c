@@ -45,7 +45,7 @@ LOG_MODULE_REGISTER(raa228249);
 
 #define VR_WARN_REMAIN_WR 3
 
-#define MAX_CMD_LINE 1024
+#define MAX_CMD_LINE 1500
 
 struct raa_data {
 	union {

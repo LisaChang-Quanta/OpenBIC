@@ -50,6 +50,7 @@ void pal_pre_init()
 	init_platform_config();
 	plat_led_init();
 	vr_mutex_init();
+	plat_clock_init();
 }
 
 void pal_set_sys_status()

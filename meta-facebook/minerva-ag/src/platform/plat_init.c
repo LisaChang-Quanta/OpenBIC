@@ -52,6 +52,7 @@ void pal_pre_init()
 	init_platform_config();
 	plat_led_init();
 	vr_mutex_init();
+	user_settings_init();
 	plat_clock_init();
 	plat_eusb_init();
 }
@@ -68,6 +69,7 @@ void pal_post_init()
 	pldm_assign_gpio_effecter_id(PLAT_EFFECTER_ID_GPIO_HIGH_BYTE);
 	init_load_eeprom_log();
 	init_cpld_polling();
+	default_settings_init();
 }
 
 #define DEF_PROJ_GPIO_PRIORITY 78

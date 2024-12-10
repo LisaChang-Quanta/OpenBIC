@@ -428,6 +428,7 @@ float mp29816a_get_resolution(sensor_cfg *cfg)
 
 	switch (offset) {
 	case PMBUS_READ_VOUT:
+	case PMBUS_VOUT_COMMAND:
 		msg.data[0] = MFR_VOUT_LOOP_CTRL;
 
 		if (i2c_master_read(&msg, i2c_max_retry)) {
@@ -435,7 +436,6 @@ float mp29816a_get_resolution(sensor_cfg *cfg)
 			break;
 		}
 		uint16_t mfr_vout_loop_ctrl = (msg.data[1] << 8) | msg.data[0];
-
 		switch ((mfr_vout_loop_ctrl & MFR_VID_RES_MASK) >> 10) {
 		case 0:
 			reso = 0.00625;
@@ -470,7 +470,6 @@ float mp29816a_get_resolution(sensor_cfg *cfg)
 		LOG_WRN("offset not supported: 0x%x", offset);
 		break;
 	}
-
 	return reso;
 }
 
@@ -532,4 +531,57 @@ uint8_t mp29816a_init(sensor_cfg *cfg)
 
 	cfg->read = mp29816a_read;
 	return SENSOR_INIT_SUCCESS;
+}
+
+bool mp29816a_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
+{
+	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
+	CHECK_NULL_ARG_WITH_RETURN(vout, SENSOR_UNSPECIFIED_ERROR);
+
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
+	float val = 0;
+	i2c_msg.bus = cfg->port;
+	i2c_msg.target_addr = cfg->target_addr;
+	i2c_msg.tx_len = 1;
+	i2c_msg.rx_len = 2;
+	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
+
+	if (i2c_master_read(&i2c_msg, retry)) {
+		LOG_ERR("Read vout command failed from dev: 0x%x", cfg->target_addr);
+		return false;
+	}
+	uint16_t read_value = (i2c_msg.data[1] << 8) | i2c_msg.data[0];
+	float resolution = mp29816a_get_resolution(cfg);
+	if (resolution == 0)
+		return false;
+	val = read_value * resolution * 1000;
+	*vout = (int)val;
+	return true;
+}
+
+bool mp29816a_set_vout_command(sensor_cfg *cfg, uint16_t vout)
+{
+	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
+	float resolution = mp29816a_get_resolution(cfg);
+	if (resolution == 0)
+		return false;
+	uint16_t read_value = (vout / resolution) / 1000;
+	read_value = read_value & READ_VOUT_MASK;
+
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
+	i2c_msg.bus = cfg->port;
+	i2c_msg.target_addr = cfg->target_addr;
+	i2c_msg.tx_len = 2 + 1;
+	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
+	i2c_msg.data[1] = read_value & 0xFF;
+	i2c_msg.data[2] = (read_value >> 8) & 0xFF;
+
+	if (i2c_master_write(&i2c_msg, retry)) {
+		LOG_ERR("Write vout command failed from dev: 0x%x", cfg->target_addr);
+		return false;
+	}
+
+	return true;
 }

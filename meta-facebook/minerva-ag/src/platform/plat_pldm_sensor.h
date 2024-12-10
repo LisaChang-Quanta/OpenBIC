@@ -18,6 +18,7 @@
 #define PLAT_PLDM_SENSOR_H
 
 #include "pdr.h"
+#include "sensor.h"
 #define ADDR_UNKNOWN (0xFF >> 1)
 
 /* Define sensors address(7 bit) */
@@ -250,6 +251,7 @@ bool is_temp_access(uint8_t cfg_idx);
 bool is_vr_access(uint8_t sensor_num);
 bool get_sensor_info_by_sensor_id(uint8_t sensor_id, uint8_t *vr_bus, uint8_t *vr_addr,
 				  uint8_t *sensor_dev);
+bool get_sensor_cfg_by_sensor_id(uint8_t sensor_id, sensor_cfg *cfg);
 bool is_osfp_3v3_access(uint8_t sensor_num);
 
 #endif

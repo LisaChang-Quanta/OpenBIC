@@ -88,8 +88,8 @@ bool vr_rail_name_get(uint8_t rail, uint8_t **name);
 bool vr_fail_enum_get(uint8_t *name, uint8_t *num);
 bool vr_vout_user_settings_get(void *user_settings);
 void user_settings_init(void);
-void default_settings_init(void);
 bool plat_get_vout_command(uint8_t rail, uint16_t *vout);
 bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is_perm);
+void print_settings(void);
 
 #endif

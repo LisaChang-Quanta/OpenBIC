@@ -23,14 +23,17 @@
 
 LOG_MODULE_REGISTER(plat_power_shell, LOG_LEVEL_DBG);
 
+static int cmd_vr_print(const struct shell *shell, size_t argc, char **argv)
+{
+	print_settings();
+
+	return 0;
+}
+
 static int cmd_vr_get_all(const struct shell *shell, size_t argc, char **argv)
 {
-	LOG_DBG("argc: %d", argc);
-
-	for (int i = 0; i < argc; i++)
-		shell_info(shell, "argv[%d]: %s", i, argv[i]);
-
-	/* TODO: list all vr sensor value */
+	shell_print(shell, "  id|              sensor_name               |vout(mV) ");
+	/* list all vr sensor value */
 	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
 		if ((get_board_type() == MINERVA_AEGIS_BD) && (i == 0))
 			continue; // skip osfp p3v3 on AEGIS BD
@@ -47,7 +50,7 @@ static int cmd_vr_get_all(const struct shell *shell, size_t argc, char **argv)
 			continue;
 		}
 
-		shell_print(shell, "%4d|%-40s|%04x|%4d", i, sensor_name, vout, vout);
+		shell_print(shell, "%4d|%-40s|%4d", i, sensor_name, vout);
 	}
 
 	return 0;
@@ -55,11 +58,13 @@ static int cmd_vr_get_all(const struct shell *shell, size_t argc, char **argv)
 
 static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
 {
-	for (int i = 0; i < argc; i++)
-		shell_info(shell, "argv[%d]: %s", i, argv[i]);
+	bool is_default = false;
+	bool is_perm = false;
 
 	if (argc == 4) {
-		if (strcmp(argv[3], "perm")) {
+		if (!strcmp(argv[3], "perm")) {
+			is_perm = true;
+		} else {
 			shell_error(shell, "The last argument must be <perm>");
 			return -1;
 		}
@@ -75,26 +80,24 @@ static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
 	/* covert voltage to millivoltage */
 	uint16_t mv = strtol(argv[2], NULL, 0);
 
-	shell_info(shell, "Set %s(%d) to %d mV, %svolatile\n", argv[1], rail, mv,
-		   (argc == 4) ? "non-" : "");
+	if (!strcmp(argv[2], "default")) {
+		is_default = true;
+		shell_info(shell, "Set %s(%d) to default, %svolatile\n", argv[1], rail,
+			   (argc == 4) ? "non-" : "");
+	} else {
+		shell_info(shell, "Set %s(%d) to %d mV, %svolatile\n", argv[1], rail, mv,
+			   (argc == 4) ? "non-" : "");
+	}
 
-	/* TODO: set the vout */
+	/* set the vout */
 	if ((get_board_type() == MINERVA_AEGIS_BD) && (rail == 0)) {
 		shell_print(shell, "skip osfp p3v3 on AEGIS BD");
 		return 0;
 	}
 
-	if (strcmp(argv[2], "default") == 0) {
-		if (!plat_set_vout_command(rail, mv, true, false)) {
-			shell_print(shell, "Can't set vout by rail index: %d", rail);
-		}
-	} else {
-		if (!plat_set_vout_command(rail, mv, false, false)) {
-			shell_print(shell, "Can't set vout by rail index: %d", rail);
-		}
-		/* TODO: save settings if perm arg exists */
-		if (argc == 4) {
-		}
+	if (!plat_set_vout_command(rail, mv, is_default, is_perm)) {
+		shell_print(shell, "Can't set vout by rail index: %d", rail);
+		return -1;
 	}
 
 	return 0;
@@ -115,14 +118,16 @@ SHELL_DYNAMIC_CMD_CREATE(vr_rname, vr_rname_get);
 
 /* level 2 */
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_vr_get_cmds,
-			       SHELL_CMD(all, NULL, "get vr all volt/curr/power", cmd_vr_get_all),
+			       SHELL_CMD(all, NULL, "get vr all volt", cmd_vr_get_all),
 			       SHELL_SUBCMD_SET_END);
 
 /* level 1 */
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_vr_cmds, SHELL_CMD(get, &sub_vr_get_cmds, "", NULL),
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_vr_cmds,
+			       SHELL_CMD(get, &sub_vr_get_cmds, "get voltage all", NULL),
 			       SHELL_CMD_ARG(set, &vr_rname,
 					     "set <voltage-rail> <new-voltage>|default [perm]",
 					     cmd_vr_set, 3, 1),
+			       SHELL_CMD(print, NULL, "print setting", cmd_vr_print),
 			       SHELL_SUBCMD_SET_END);
 
 /* Root of command test */

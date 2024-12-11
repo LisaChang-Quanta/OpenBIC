@@ -17,6 +17,7 @@
 #define ISL69259_H
 
 #include "stdint.h"
+#include "sensor.h"
 
 #define TWO_COMPLEMENT_NEGATIVE_BIT BIT(15)
 #define ADJUST_IOUT_RANGE 2

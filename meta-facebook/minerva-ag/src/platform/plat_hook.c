@@ -164,6 +164,7 @@ vr_mapping_sensor vr_rail_table[] = {
 	{ 18, SENSOR_NUM_CPU_P0V8_VDDA_PCIE_VOLT_V, "AEGIS_CPU_P0V8_VDDA_PCIE" },
 	{ 19, SENSOR_NUM_CPU_P1V2_VDDHTX_PCIE_VOLT_V, "AEGIS_CPU_P1V2_VDDHTX_PCIE" },
 };
+
 bool vr_rail_name_get(uint8_t rail, uint8_t **name)
 {
 	CHECK_NULL_ARG_WITH_RETURN(name, false);
@@ -205,22 +206,46 @@ bool vr_vout_user_settings_get(void *user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
-	const uint8_t retry = 5;
 	/* read the user_settings from eeprom */
 	I2C_MSG msg = { 0 };
+	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
 	msg.tx_len = 2;
 	msg.data[0] = VR_VOUT_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = VR_VOUT_USER_SETTINGS_OFFSET & 0xff;
 	msg.rx_len = sizeof(struct vr_vout_user_settings);
-	LOG_INF("sizeof(struct vr_vout_user_settings) %d", msg.rx_len);
+
 	if (i2c_master_read(&msg, retry)) {
-		LOG_ERR("read eeprom fail!!");
+		LOG_ERR("Failed to read eeprom, bus: %d, addr: 0x%x, reg: 0x%x", msg.bus,
+			msg.target_addr, msg.data[0]);
+		return false;
+	}
+	memcpy(user_settings, msg.data, sizeof(struct vr_vout_user_settings));
+
+	return true;
+}
+
+bool vr_vout_user_settings_set(void *user_settings)
+{
+	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
+
+	/* write the user_settings to eeprom */
+	I2C_MSG msg = { 0 };
+	uint8_t retry = 5;
+	msg.bus = I2C_BUS12;
+	msg.target_addr = 0xA0 >> 1;
+	msg.tx_len = sizeof(struct vr_vout_user_settings) + 2;
+	msg.data[0] = VR_VOUT_USER_SETTINGS_OFFSET >> 8;
+	msg.data[1] = VR_VOUT_USER_SETTINGS_OFFSET & 0xff;
+
+	memcpy(&msg.data[2], user_settings, sizeof(struct vr_vout_user_settings));
+	if (i2c_master_write(&msg, retry)) {
+		LOG_ERR("Failed to write eeprom, bus: %d, addr: 0x%x, reg: 0x%x", msg.bus,
+			msg.target_addr, msg.data[0]);
 		return false;
 	}
 
-	memcpy(user_settings, msg.data, sizeof(struct vr_vout_user_settings));
 	return true;
 }
 
@@ -232,12 +257,14 @@ static bool vr_vout_user_settings_init(void)
 	}
 
 	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
-		LOG_INF("vout user setting %s: %x", vr_rail_table[i].sensor_name,
-			user_settings.vout[i]);
-
 		if (user_settings.vout[i] != 0xffff) {
-			/* TODO: write vout */
-			LOG_INF("write vout %s: %x", vr_rail_table[i].sensor_name,
+			/* write vout */
+			if (!plat_set_vout_command(i, user_settings.vout[i], false, false)) {
+				LOG_ERR("Can't set vout[%d]=%x by user settings", i,
+					user_settings.vout[i]);
+				return false;
+			}
+			LOG_INF("set [%d]%s: %dmV", i, vr_rail_table[i].sensor_name,
 				user_settings.vout[i]);
 		}
 	}
@@ -252,30 +279,34 @@ static bool vr_vout_default_settings_init(void)
 			default_settings.vout[i] = 0xffff;
 			continue; // skip osfp p3v3 on AEGIS BD
 		}
-
 		uint16_t vout = 0;
 		if (!plat_get_vout_command(i, &vout)) {
 			LOG_ERR("Can't find vout default by rail index: %d", i);
 			return false;
 		}
-
 		default_settings.vout[i] = vout;
 	}
 
 	return true;
 }
 
-/* init the user settings value by shell command */
-void user_settings_init(void)
+void print_settings(void)
 {
-	/* init vr vout */
-	vr_vout_user_settings_init();
+	printk("print_default_settings\n");
+	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
+		printk("[%d] vout = %d\n", i, default_settings.vout[i]);
+	}
+	printk("print_settings\n");
+	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
+		printk("[%d] vout = %d\n", i, user_settings.vout[i]);
+	}
 }
 
-void default_settings_init(void)
+/* init the user & default settings value by shell command */
+void user_settings_init(void)
 {
-	/* init vr default vout */
 	vr_vout_default_settings_init();
+	vr_vout_user_settings_init();
 }
 
 bool plat_get_vout_command(uint8_t rail, uint16_t *vout)
@@ -358,8 +389,6 @@ err:
 
 bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is_perm)
 {
-	//CHECK_NULL_ARG_WITH_RETURN(vout, false);
-
 	bool ret = false;
 	sensor_cfg cfg = { 0 };
 	uint8_t sensor_id = vr_rail_table[rail].sensor_id;
@@ -396,7 +425,6 @@ bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is
 
 	if (is_default) {
 		vout = default_settings.vout[rail];
-		LOG_DBG("rail[%d] sensor id[0x%x] set vout default[%d]", rail, sensor_id, vout);
 	}
 
 	switch (cfg.type) {
@@ -427,6 +455,11 @@ bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is
 	default:
 		LOG_ERR("Unsupport VR type(%x)", cfg.type);
 		goto err;
+	}
+
+	if (is_perm) {
+		user_settings.vout[rail] = vout;
+		vr_vout_user_settings_set(&user_settings);
 	}
 
 	ret = true;

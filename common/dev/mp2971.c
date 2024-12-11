@@ -849,10 +849,13 @@ uint8_t mp2971_init(sensor_cfg *cfg)
 	return SENSOR_INIT_SUCCESS;
 }
 
-float get_vid(sensor_cfg *cfg)
+/* use millivolt units */
+bool mp2971_vid_to_direct(sensor_cfg *cfg, uint16_t *value)
 {
-	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_FAIL_TO_ACCESS);
-	float reso = 0;
+	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
+	CHECK_NULL_ARG_WITH_RETURN(value, false);
+
+	bool ret = false;
 
 	I2C_MSG msg;
 	uint8_t i2c_max_retry = 5;
@@ -866,72 +869,143 @@ float get_vid(sensor_cfg *cfg)
 
 	if (i2c_master_read(&msg, i2c_max_retry)) {
 		LOG_WRN("I2C read failed");
-		return 0;
+		return ret;
 	}
 
 	uint8_t page = msg.data[0];
 
+	if (mp2856_set_page(msg.bus, msg.target_addr, VR_MPS_PAGE_2A) == false) {
+		return ret;
+	}
+
 	//get reso set
 	msg.rx_len = 2;
 	if (page == 0) {
-		if (mp2856_set_page(msg.bus, msg.target_addr, VR_MPS_PAGE_2A) == false) {
-			return 0;
-		}
 		msg.data[0] = VR_MPS_REG_MFR_VR_MULTI_CONFIG_R1;
-	} else if (page == 1) {
-		if (mp2856_set_page(msg.bus, msg.target_addr, VR_MPS_PAGE_2A) == false) {
-			return 0;
+		if (i2c_master_read(&msg, i2c_max_retry)) {
+			LOG_WRN("I2C read failed");
+			return ret;
 		}
+		uint16_t mfr_vr_multi_config = (msg.data[1] << 8) | msg.data[0];
+
+		if (mfr_vr_multi_config & BIT(14)) {
+			*value = 200 + (*value - 1) * 10;
+		} else if (mfr_vr_multi_config & BIT(4)) {
+			*value = 250 + (*value - 1) * 5;
+		} else {
+			*value = 500 + (*value - 1) * 10;
+		}
+
+	} else if (page == 1) {
 		msg.data[0] = VR_MPS_REG_MFR_VR_MULTI_CONFIG_R2;
+		if (i2c_master_read(&msg, i2c_max_retry)) {
+			LOG_WRN("I2C read failed");
+			return ret;
+		}
+		uint16_t mfr_vr_multi_config = (msg.data[1] << 8) | msg.data[0];
+
+		if (mfr_vr_multi_config & BIT(13)) {
+			*value = 200 + (*value - 1) * 10;
+		} else if (mfr_vr_multi_config & BIT(3)) {
+			*value = 250 + (*value - 1) * 5;
+		} else {
+			*value = 500 + (*value - 1) * 10;
+		}
+
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
-	}
-
-	if (i2c_master_read(&msg, i2c_max_retry)) {
-		LOG_WRN("I2C read failed");
-		return 0;
-	}
-
-	uint16_t mfr_vr_multi_config = (msg.data[1] << 8) | msg.data[0];
-	uint8_t vid_step_set = 0;
-	if (page == 0) {
-		vid_step_set = (mfr_vr_multi_config & GENMASK(4, 4)) >> 4;
-
-		if (vid_step_set == 0) {
-			reso = 0.01;
-		} else if (vid_step_set == 1) {
-			reso = 0.005;
-		} else {
-			LOG_WRN("vid_step_set not supported: 0x%x", vid_step_set);
-		}
-	} else if (page == 1) {
-		vid_step_set = (mfr_vr_multi_config & GENMASK(3, 3)) >> 3;
-
-		if (vid_step_set == 0) {
-			reso = 0.01;
-		} else if (vid_step_set == 1) {
-			reso = 0.005;
-		} else {
-			LOG_WRN("vid_step_set not supported: 0x%x", vid_step_set);
-		}
-	} else {
-		LOG_WRN("Page not supported: 0x%d\n", page);
+		return ret;
 	}
 
 	if (mp2856_set_page(msg.bus, msg.target_addr, page) == false) {
-		return 0;
+		return ret;
 	}
-	return reso;
+	ret = true;
+	return ret;
+}
+
+/* use millivolt units */
+bool mp2971_direct_to_vid(sensor_cfg *cfg, uint16_t *value)
+{
+	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
+	CHECK_NULL_ARG_WITH_RETURN(value, false);
+
+	bool ret = false;
+
+	I2C_MSG msg;
+	uint8_t i2c_max_retry = 5;
+
+	//get page
+	msg.bus = cfg->port;
+	msg.target_addr = cfg->target_addr;
+	msg.tx_len = 1;
+	msg.rx_len = 1;
+	msg.data[0] = PMBUS_PAGE;
+
+	if (i2c_master_read(&msg, i2c_max_retry)) {
+		LOG_WRN("I2C read failed");
+		return ret;
+	}
+
+	uint8_t page = msg.data[0];
+
+	if (mp2856_set_page(msg.bus, msg.target_addr, VR_MPS_PAGE_2A) == false) {
+		return ret;
+	}
+
+	//get reso set
+	msg.rx_len = 2;
+	if (page == 0) {
+		msg.data[0] = VR_MPS_REG_MFR_VR_MULTI_CONFIG_R1;
+		if (i2c_master_read(&msg, i2c_max_retry)) {
+			LOG_WRN("I2C read failed");
+			return ret;
+		}
+		uint16_t mfr_vr_multi_config = (msg.data[1] << 8) | msg.data[0];
+
+		if (mfr_vr_multi_config & BIT(14)) {
+			*value = (*value - 200) / 10 + 1;
+		} else if (mfr_vr_multi_config & BIT(4)) {
+			*value = (*value - 250) / 5 + 1;
+		} else {
+			*value = (*value - 500) / 10 + 1;
+		}
+
+	} else if (page == 1) {
+		msg.data[0] = VR_MPS_REG_MFR_VR_MULTI_CONFIG_R2;
+		if (i2c_master_read(&msg, i2c_max_retry)) {
+			LOG_WRN("I2C read failed");
+			return ret;
+		}
+		uint16_t mfr_vr_multi_config = (msg.data[1] << 8) | msg.data[0];
+
+		if (mfr_vr_multi_config & BIT(13)) {
+			*value = (*value - 200) / 10 + 1;
+		} else if (mfr_vr_multi_config & BIT(3)) {
+			*value = (*value - 250) / 5 + 1;
+		} else {
+			*value = (*value - 500) / 10 + 1;
+		}
+
+	} else {
+		LOG_WRN("Page not supported: 0x%d", page);
+		return ret;
+	}
+
+	if (mp2856_set_page(msg.bus, msg.target_addr, page) == false) {
+		return ret;
+	}
+	ret = true;
+	return ret;
 }
 
 bool mp2971_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
 {
-	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
-	CHECK_NULL_ARG_WITH_RETURN(vout, SENSOR_UNSPECIFIED_ERROR);
+	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
+	CHECK_NULL_ARG_WITH_RETURN(vout, false);
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 3;
-	float val = 0;
 	i2c_msg.bus = cfg->port;
 	i2c_msg.target_addr = cfg->target_addr;
 	i2c_msg.tx_len = 1;
@@ -943,22 +1017,17 @@ bool mp2971_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
 		return false;
 	}
 	uint16_t read_value = (i2c_msg.data[1] << 8) | i2c_msg.data[0];
-	float resolution = get_vid(cfg);
-	if (resolution == 0)
+	if (mp2971_vid_to_direct(cfg, &read_value))
 		return false;
-	val = read_value * resolution * 1000;
-	*vout = (int)val;
+	*vout = read_value;
 	return true;
 }
 
 bool mp2971_set_vout_command(sensor_cfg *cfg, uint16_t vout)
 {
-	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
-	float resolution = get_vid(cfg);
-	if (resolution == 0)
+	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
+	if (mp2971_direct_to_vid(cfg, &vout))
 		return false;
-	uint16_t read_value = (vout / resolution) / 1000;
-	read_value = read_value & MP2971_VOUT_SCALE_MASK;
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 3;
@@ -966,8 +1035,11 @@ bool mp2971_set_vout_command(sensor_cfg *cfg, uint16_t vout)
 	i2c_msg.target_addr = cfg->target_addr;
 	i2c_msg.tx_len = 2 + 1;
 	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
-	i2c_msg.data[1] = read_value & 0xFF;
-	i2c_msg.data[2] = (read_value >> 8) & 0xFF;
+	i2c_msg.data[1] = vout & 0xFF;
+	i2c_msg.data[2] = (vout >> 8) & 0xFF;
+	LOG_INF("bus:%x addr:%x offset:%x data[0]:%x data[1]:%x data[2]:%x\n", i2c_msg.bus,
+		i2c_msg.target_addr, cfg->offset, i2c_msg.data[0], i2c_msg.data[1],
+		i2c_msg.data[2]);
 
 	if (i2c_master_write(&i2c_msg, retry)) {
 		LOG_ERR("Write vout command failed from dev: 0x%x", cfg->target_addr);

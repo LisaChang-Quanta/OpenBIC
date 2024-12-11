@@ -488,6 +488,51 @@ exit:
 	return ret;
 }
 
+bool isl69260_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
+{
+	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
+	CHECK_NULL_ARG_WITH_RETURN(vout, SENSOR_UNSPECIFIED_ERROR);
+
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
+	int val = 0;
+	i2c_msg.bus = cfg->port;
+	i2c_msg.target_addr = cfg->target_addr;
+	i2c_msg.tx_len = 1;
+	i2c_msg.rx_len = 2;
+	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
+
+	if (i2c_master_read(&i2c_msg, retry)) {
+		LOG_ERR("Read vout command failed from dev: 0x%x", cfg->target_addr);
+		return false;
+	}
+	val = (i2c_msg.data[1] << 8) | i2c_msg.data[0];
+	*vout = val;
+
+	return true;
+}
+
+bool isl69260_set_vout_command(sensor_cfg *cfg, uint16_t vout)
+{
+	CHECK_NULL_ARG_WITH_RETURN(cfg, SENSOR_UNSPECIFIED_ERROR);
+
+	I2C_MSG i2c_msg = { 0 };
+	uint8_t retry = 3;
+	i2c_msg.bus = cfg->port;
+	i2c_msg.target_addr = cfg->target_addr;
+	i2c_msg.tx_len = 2 + 1;
+	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
+	i2c_msg.data[1] = vout & 0xFF;
+	i2c_msg.data[2] = (vout >> 8) & 0xFF;
+
+	if (i2c_master_write(&i2c_msg, retry)) {
+		LOG_ERR("Write vout command failed from dev: 0x%x", cfg->target_addr);
+		return false;
+	}
+
+	return true;
+}
+
 bool adjust_of_twos_complement(uint8_t offset, int *val)
 {
 	CHECK_NULL_ARG_WITH_RETURN(val, false);

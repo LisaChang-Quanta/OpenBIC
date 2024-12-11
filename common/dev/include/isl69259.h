@@ -30,5 +30,7 @@ bool isl69259_fwupdate(uint8_t bus, uint8_t addr, uint8_t *img_buff, uint32_t im
 bool isl69259_get_raa_hex_mode(uint8_t bus, uint8_t addr, uint8_t *mode);
 bool isl69259_get_raa_crc(uint8_t bus, uint8_t addr, uint8_t mode, uint32_t *crc);
 bool get_raa_remaining_wr(uint8_t bus, uint8_t addr, uint8_t mode, uint16_t *remain);
+bool isl69260_get_vout_command(sensor_cfg *cfg, uint16_t *vout);
+bool isl69260_set_vout_command(sensor_cfg *cfg, uint16_t vout);
 
 #endif

@@ -26,7 +26,7 @@
 #include "plat_hook.h"
 #include <logging/log.h>
 #include "mp2971.h"
-#include "raa229621.h"
+#include "isl69259.h"
 #include "raa228249.h"
 #include "mp29816a.h"
 #include "plat_pldm_sensor.h"
@@ -284,7 +284,7 @@ bool plat_get_vout_command(uint8_t rail, uint16_t *vout)
 
 	bool ret = false;
 	sensor_cfg cfg = { 0 };
-	uint8_t sensor_id = vr_rail_table[rail].sensor_pdr_index;
+	uint8_t sensor_id = vr_rail_table[rail].sensor_id;
 	if (!get_sensor_cfg_by_sensor_id(sensor_id, &cfg)) {
 		LOG_ERR("Can't find sensor cfg by sensor id: 0x%x", sensor_id);
 		return false;
@@ -362,7 +362,7 @@ bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is
 
 	bool ret = false;
 	sensor_cfg cfg = { 0 };
-	uint8_t sensor_id = vr_rail_table[rail].sensor_pdr_index;
+	uint8_t sensor_id = vr_rail_table[rail].sensor_id;
 	if (!get_sensor_cfg_by_sensor_id(sensor_id, &cfg)) {
 		LOG_ERR("Can't find sensor cfg by sensor id: 0x%x", sensor_id);
 		return ret;
@@ -436,14 +436,4 @@ err:
 		LOG_ERR("rail[%d] sensor id[0x%x] mutex unlock fail", rail, sensor_id);
 	}
 	return ret;
-}
-
-bool plat_get_vout_max(uint8_t rail, uint16_t *millivolt)
-{
-	return true;
-}
-
-bool plat_get_vout_min(uint8_t rail, uint16_t *millivolt)
-{
-	return true;
 }

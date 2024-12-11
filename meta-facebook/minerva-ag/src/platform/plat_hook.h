@@ -64,7 +64,7 @@ enum VR_RAIL_E {
 
 typedef struct vr_mapping_sensor {
 	uint8_t index;
-	uint8_t sensor_pdr_index;
+	uint8_t sensor_id;
 	uint8_t *sensor_name;
 } vr_mapping_sensor;
 
@@ -91,7 +91,5 @@ void user_settings_init(void);
 void default_settings_init(void);
 bool plat_get_vout_command(uint8_t rail, uint16_t *vout);
 bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is_perm);
-bool plat_get_vout_max(uint8_t rail, uint16_t *millivolt);
-bool plat_get_vout_min(uint8_t rail, uint16_t *millivolt);
 
 #endif

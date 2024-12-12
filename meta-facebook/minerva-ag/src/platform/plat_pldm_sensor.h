@@ -251,7 +251,7 @@ bool is_temp_access(uint8_t cfg_idx);
 bool is_vr_access(uint8_t sensor_num);
 bool get_sensor_info_by_sensor_id(uint8_t sensor_id, uint8_t *vr_bus, uint8_t *vr_addr,
 				  uint8_t *sensor_dev);
-bool get_sensor_cfg_by_sensor_id(uint8_t sensor_id, sensor_cfg *cfg);
+sensor_cfg *get_sensor_cfg_by_sensor_id(uint8_t sensor_id);
 bool is_osfp_3v3_access(uint8_t sensor_num);
 
 #endif

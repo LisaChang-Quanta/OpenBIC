@@ -9535,18 +9535,15 @@ bool get_sensor_info_by_sensor_id(uint8_t sensor_id, uint8_t *vr_bus, uint8_t *v
 	return false;
 }
 
-bool get_sensor_cfg_by_sensor_id(uint8_t sensor_id, sensor_cfg *cfg)
+sensor_cfg *get_sensor_cfg_by_sensor_id(uint8_t sensor_id)
 {
-	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
-
 	int pldm_sensor_count = 0;
 
 	if (sensor_id >= SENSOR_NUM_UBC_1_TEMP_C && sensor_id <= SENSOR_NUM_UBC_2_P12V_PWR_W) {
 		pldm_sensor_count = plat_pldm_sensor_get_sensor_count(UBC_SENSOR_THREAD_ID);
 		for (int index = 0; index < pldm_sensor_count; index++) {
 			if (plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg.num == sensor_id) {
-				*cfg = plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg;
-				return true;
+				return &plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg;
 			}
 		}
 	} else if (sensor_id >= SENSOR_NUM_TOP_INLET_TEMP_C &&
@@ -9554,8 +9551,7 @@ bool get_sensor_cfg_by_sensor_id(uint8_t sensor_id, sensor_cfg *cfg)
 		pldm_sensor_count = plat_pldm_sensor_get_sensor_count(TEMP_SENSOR_THREAD_ID);
 		for (int index = 0; index < pldm_sensor_count; index++) {
 			if (plat_pldm_sensor_temp_table[index].pldm_sensor_cfg.num == sensor_id) {
-				*cfg = plat_pldm_sensor_temp_table[index].pldm_sensor_cfg;
-				return true;
+				return &plat_pldm_sensor_temp_table[index].pldm_sensor_cfg;
 			}
 		}
 	} else if (sensor_id >= SENSOR_NUM_OSFP_P3V3_TEMP_C &&
@@ -9563,13 +9559,12 @@ bool get_sensor_cfg_by_sensor_id(uint8_t sensor_id, sensor_cfg *cfg)
 		pldm_sensor_count = plat_pldm_sensor_get_sensor_count(VR_SENSOR_THREAD_ID);
 		for (int index = 0; index < pldm_sensor_count; index++) {
 			if (plat_pldm_sensor_vr_table[index].pldm_sensor_cfg.num == sensor_id) {
-				*cfg = plat_pldm_sensor_vr_table[index].pldm_sensor_cfg;
-				return true;
+				return &plat_pldm_sensor_vr_table[index].pldm_sensor_cfg;
 			}
 		}
 	}
 
-	return false;
+	return NULL;
 }
 
 bool is_osfp_3v3_access(uint8_t sensor_num)

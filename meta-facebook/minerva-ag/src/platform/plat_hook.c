@@ -314,75 +314,58 @@ bool plat_get_vout_command(uint8_t rail, uint16_t *vout)
 	CHECK_NULL_ARG_WITH_RETURN(vout, false);
 
 	bool ret = false;
-	sensor_cfg cfg = { 0 };
 	uint8_t sensor_id = vr_rail_table[rail].sensor_id;
-	if (!get_sensor_cfg_by_sensor_id(sensor_id, &cfg)) {
-		LOG_ERR("Can't find sensor cfg by sensor id: 0x%x", sensor_id);
+	sensor_cfg *cfg = get_sensor_cfg_by_sensor_id(sensor_id);
+
+	if (cfg == NULL) {
+		LOG_ERR("Failed to get sensor config for sensor 0x%x", sensor_id);
 		return false;
 	}
 
 	/* mutex lock */
-	vr_pre_proc_arg *pre_proc_args = vr_pre_read_args + rail;
-
-	if (!pre_proc_args->mutex) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex %p, page %d", rail, sensor_id,
-			pre_proc_args->mutex, pre_proc_args->vr_page);
-		return false;
+	if (cfg->pre_sensor_read_hook) {
+		if (!cfg->pre_sensor_read_hook(cfg, cfg->pre_sensor_read_args)) {
+			LOG_ERR("sensor id: 0x%x pre-read fail", sensor_id);
+			goto err;
+		}
 	}
 
-	if (k_mutex_lock(pre_proc_args->mutex, K_MSEC(VR_MUTEX_LOCK_TIMEOUT_MS))) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex lock fail", rail, sensor_id);
-		return false;
-	}
-
-	/* set page */
-	uint8_t retry = 5;
-	I2C_MSG msg;
-	msg.bus = cfg.port;
-	msg.target_addr = cfg.target_addr;
-	msg.tx_len = 2;
-	msg.data[0] = 0x00;
-	msg.data[1] = pre_proc_args->vr_page;
-	if (i2c_master_write(&msg, retry)) {
-		LOG_ERR("rail[%d] sensor id[0x%x] set page fail", rail, sensor_id);
-		goto err;
-	}
-
-	switch (cfg.type) {
+	switch (cfg->type) {
 	case sensor_dev_isl69259:
-		if (!isl69260_get_vout_command(&cfg, vout)) {
+		if (!isl69260_get_vout_command(cfg, vout)) {
 			LOG_ERR("The VR ISL69260 vout reading failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_mp2971:
-		if (!mp2971_get_vout_command(&cfg, vout)) {
+		if (!mp2971_get_vout_command(cfg, vout)) {
 			LOG_ERR("The VR MPS2971 vout reading failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_mp29816a:
-		if (!mp29816a_get_vout_command(&cfg, vout)) {
+		if (!mp29816a_get_vout_command(cfg, vout)) {
 			LOG_ERR("The VR MPS29816a vout reading failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_raa228249:
-		if (!raa228249_get_vout_command(&cfg, vout)) {
+		if (!raa228249_get_vout_command(cfg, vout)) {
 			LOG_ERR("The VR RAA228249 vout reading failed");
 			goto err;
 		}
 		break;
 	default:
-		LOG_ERR("Unsupport VR type(%x)", cfg.type);
+		LOG_ERR("Unsupport VR type(%x)", cfg->type);
 		goto err;
 	}
 
 	ret = true;
 err:
-	/* mutex unlock */
-	if (k_mutex_unlock(pre_proc_args->mutex)) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex unlock fail", rail, sensor_id);
+	if (cfg->post_sensor_read_hook) {
+		if (cfg->post_sensor_read_hook(cfg, cfg->post_sensor_read_args, NULL) == false) {
+			LOG_ERR("sensor id: 0x%x post-read fail", sensor_id);
+		}
 	}
 	return ret;
 }
@@ -390,70 +373,53 @@ err:
 bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is_perm)
 {
 	bool ret = false;
-	sensor_cfg cfg = { 0 };
 	uint8_t sensor_id = vr_rail_table[rail].sensor_id;
-	if (!get_sensor_cfg_by_sensor_id(sensor_id, &cfg)) {
-		LOG_ERR("Can't find sensor cfg by sensor id: 0x%x", sensor_id);
-		return ret;
+	sensor_cfg *cfg = get_sensor_cfg_by_sensor_id(sensor_id);
+
+	if (cfg == NULL) {
+		LOG_ERR("Failed to get sensor config for sensor 0x%x", sensor_id);
+		return false;
 	}
 
 	/* mutex lock */
-	vr_pre_proc_arg *pre_proc_args = vr_pre_read_args + rail;
-	if (!pre_proc_args->mutex) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex %p, page %d", rail, sensor_id,
-			pre_proc_args->mutex, pre_proc_args->vr_page);
-		return false;
-	}
-
-	if (k_mutex_lock(pre_proc_args->mutex, K_MSEC(VR_MUTEX_LOCK_TIMEOUT_MS))) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex lock fail", rail, sensor_id);
-		return false;
-	}
-
-	/* set page */
-	uint8_t retry = 5;
-	I2C_MSG msg;
-	msg.bus = cfg.port;
-	msg.target_addr = cfg.target_addr;
-	msg.tx_len = 2;
-	msg.data[0] = 0x00;
-	msg.data[1] = pre_proc_args->vr_page;
-	if (i2c_master_write(&msg, retry)) {
-		LOG_ERR("rail[%d] sensor id[0x%x] set page fail", rail, sensor_id);
-		goto err;
+	if (cfg->pre_sensor_read_hook) {
+		if (!cfg->pre_sensor_read_hook(cfg, cfg->pre_sensor_read_args)) {
+			LOG_ERR("sensor id: 0x%x pre-read fail", sensor_id);
+			goto err;
+		}
 	}
 
 	if (is_default) {
 		vout = default_settings.vout[rail];
 	}
 
-	switch (cfg.type) {
+	switch (cfg->type) {
 	case sensor_dev_isl69259:
-		if (!isl69260_set_vout_command(&cfg, vout)) {
+		if (!isl69260_set_vout_command(cfg, vout)) {
 			LOG_ERR("The VR ISL69260 vout setting failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_mp2971:
-		if (!mp2971_set_vout_command(&cfg, vout)) {
+		if (!mp2971_set_vout_command(cfg, vout)) {
 			LOG_ERR("The VR MPS2971 vout setting failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_mp29816a:
-		if (!mp29816a_set_vout_command(&cfg, vout)) {
+		if (!mp29816a_set_vout_command(cfg, vout)) {
 			LOG_ERR("The VR MPS29816a vout setting failed");
 			goto err;
 		}
 		break;
 	case sensor_dev_raa228249:
-		if (!raa228249_set_vout_command(&cfg, vout)) {
+		if (!raa228249_set_vout_command(cfg, vout)) {
 			LOG_ERR("The VR RAA228249 vout setting failed");
 			goto err;
 		}
 		break;
 	default:
-		LOG_ERR("Unsupport VR type(%x)", cfg.type);
+		LOG_ERR("Unsupport VR type(%x)", cfg->type);
 		goto err;
 	}
 
@@ -464,9 +430,10 @@ bool plat_set_vout_command(uint8_t rail, uint16_t vout, bool is_default, bool is
 
 	ret = true;
 err:
-	/* mutex unlock */
-	if (k_mutex_unlock(pre_proc_args->mutex)) {
-		LOG_ERR("rail[%d] sensor id[0x%x] mutex unlock fail", rail, sensor_id);
+	if (cfg->post_sensor_read_hook) {
+		if (cfg->post_sensor_read_hook(cfg, cfg->post_sensor_read_args, NULL) == false) {
+			LOG_ERR("sensor id: 0x%x post-read fail", sensor_id);
+		}
 	}
 	return ret;
 }

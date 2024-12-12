@@ -450,9 +450,6 @@ bool raa228249_set_vout_command(sensor_cfg *cfg, uint16_t vout)
 	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
 	i2c_msg.data[1] = vout & 0xFF;
 	i2c_msg.data[2] = (vout >> 8) & 0xFF;
-	LOG_INF("bus:%x addr:%x offset:%x data[0]:%x data[1]:%x data[2]:%x\n", i2c_msg.bus,
-		i2c_msg.target_addr, cfg->offset, i2c_msg.data[0], i2c_msg.data[1],
-		i2c_msg.data[2]);
 
 	if (i2c_master_write(&i2c_msg, retry)) {
 		LOG_ERR("Write vout command failed from dev: 0x%x", cfg->target_addr);

@@ -186,7 +186,7 @@ struct vr_vout_user_settings {
 struct vr_vout_user_settings user_settings = { 0 };
 struct vr_vout_user_settings default_settings = { 0 };
 
-bool vr_fail_enum_get(uint8_t *name, uint8_t *num)
+bool vr_rail_enum_get(uint8_t *name, uint8_t *num)
 {
 	CHECK_NULL_ARG_WITH_RETURN(name, false);
 	CHECK_NULL_ARG_WITH_RETURN(num, false);
@@ -288,18 +288,6 @@ static bool vr_vout_default_settings_init(void)
 	}
 
 	return true;
-}
-
-void print_settings(void)
-{
-	printk("print_default_settings\n");
-	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
-		printk("[%d] vout = %d\n", i, default_settings.vout[i]);
-	}
-	printk("print_settings\n");
-	for (int i = 0; i < VR_RAIL_E_MAX; i++) {
-		printk("[%d] vout = %d\n", i, user_settings.vout[i]);
-	}
 }
 
 /* init the user & default settings value by shell command */

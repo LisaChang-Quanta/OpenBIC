@@ -21,16 +21,9 @@
 #include "plat_hook.h"
 #include "plat_class.h"
 
-LOG_MODULE_REGISTER(plat_power_shell, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(plat_voltage_shell, LOG_LEVEL_DBG);
 
-static int cmd_vr_print(const struct shell *shell, size_t argc, char **argv)
-{
-	print_settings();
-
-	return 0;
-}
-
-static int cmd_vr_get_all(const struct shell *shell, size_t argc, char **argv)
+static int cmd_voltage_get_all(const struct shell *shell, size_t argc, char **argv)
 {
 	shell_print(shell, "  id|              sensor_name               |vout(mV) ");
 	/* list all vr sensor value */
@@ -56,7 +49,7 @@ static int cmd_vr_get_all(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
+static int cmd_voltage_set(const struct shell *shell, size_t argc, char **argv)
 {
 	bool is_default = false;
 	bool is_perm = false;
@@ -72,20 +65,18 @@ static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
 
 	/* covert rail string to enum */
 	enum VR_RAIL_E rail;
-	if (vr_fail_enum_get(argv[1], &rail) == false) {
+	if (vr_rail_enum_get(argv[1], &rail) == false) {
 		shell_error(shell, "Invalid rail name: %s", argv[1]);
 		return -1;
 	}
 
-	/* covert voltage to millivoltage */
-	uint16_t mv = strtol(argv[2], NULL, 0);
-
+	uint16_t millivolt = strtol(argv[2], NULL, 0);
 	if (!strcmp(argv[2], "default")) {
 		is_default = true;
 		shell_info(shell, "Set %s(%d) to default, %svolatile\n", argv[1], rail,
 			   (argc == 4) ? "non-" : "");
 	} else {
-		shell_info(shell, "Set %s(%d) to %d mV, %svolatile\n", argv[1], rail, mv,
+		shell_info(shell, "Set %s(%d) to %d mV, %svolatile\n", argv[1], rail, millivolt,
 			   (argc == 4) ? "non-" : "");
 	}
 
@@ -94,8 +85,7 @@ static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
 		shell_print(shell, "skip osfp p3v3 on AEGIS BD");
 		return 0;
 	}
-
-	if (!plat_set_vout_command(rail, mv, is_default, is_perm)) {
+	if (!plat_set_vout_command(rail, millivolt, is_default, is_perm)) {
 		shell_print(shell, "Can't set vout by rail index: %d", rail);
 		return -1;
 	}
@@ -103,7 +93,7 @@ static int cmd_vr_set(const struct shell *shell, size_t argc, char **argv)
 	return 0;
 }
 
-static void vr_rname_get(size_t idx, struct shell_static_entry *entry)
+static void voltage_rname_get(size_t idx, struct shell_static_entry *entry)
 {
 	uint8_t *name = NULL;
 	vr_rail_name_get((uint8_t)idx, &name);
@@ -114,21 +104,21 @@ static void vr_rname_get(size_t idx, struct shell_static_entry *entry)
 	entry->subcmd = NULL;
 }
 
-SHELL_DYNAMIC_CMD_CREATE(vr_rname, vr_rname_get);
+SHELL_DYNAMIC_CMD_CREATE(voltage_rname, voltage_rname_get);
 
 /* level 2 */
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_vr_get_cmds,
-			       SHELL_CMD(all, NULL, "get vr all volt", cmd_vr_get_all),
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_voltage_get_cmds,
+			       SHELL_CMD(all, NULL, "get voltage all vout command",
+					 cmd_voltage_get_all),
 			       SHELL_SUBCMD_SET_END);
 
 /* level 1 */
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_vr_cmds,
-			       SHELL_CMD(get, &sub_vr_get_cmds, "get voltage all", NULL),
-			       SHELL_CMD_ARG(set, &vr_rname,
+SHELL_STATIC_SUBCMD_SET_CREATE(sub_voltage_cmds,
+			       SHELL_CMD(get, &sub_voltage_get_cmds, "get voltage all", NULL),
+			       SHELL_CMD_ARG(set, &voltage_rname,
 					     "set <voltage-rail> <new-voltage>|default [perm]",
-					     cmd_vr_set, 3, 1),
-			       SHELL_CMD(print, NULL, "print setting", cmd_vr_print),
+					     cmd_voltage_set, 3, 1),
 			       SHELL_SUBCMD_SET_END);
 
 /* Root of command test */
-SHELL_CMD_REGISTER(voltage, &sub_vr_cmds, "vr set/get commands", NULL);
+SHELL_CMD_REGISTER(voltage, &sub_voltage_cmds, "voltage set/get commands", NULL);

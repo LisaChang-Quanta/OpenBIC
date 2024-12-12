@@ -1017,8 +1017,12 @@ bool mp2971_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
 		return false;
 	}
 	uint16_t read_value = (i2c_msg.data[1] << 8) | i2c_msg.data[0];
-	if (mp2971_vid_to_direct(cfg, &read_value))
+	if (!mp2971_vid_to_direct(cfg, &read_value)) {
+		LOG_ERR("bus:%x addr:%x mp2971_vid_to_direct failed \n", cfg->port,
+			cfg->target_addr);
 		return false;
+	}
+
 	*vout = read_value;
 	return true;
 }
@@ -1026,8 +1030,11 @@ bool mp2971_get_vout_command(sensor_cfg *cfg, uint16_t *vout)
 bool mp2971_set_vout_command(sensor_cfg *cfg, uint16_t vout)
 {
 	CHECK_NULL_ARG_WITH_RETURN(cfg, false);
-	if (mp2971_direct_to_vid(cfg, &vout))
+	if (!mp2971_direct_to_vid(cfg, &vout)) {
+		LOG_ERR("bus:%x addr:%x mp2971_direct_to_vid failed \n", cfg->port,
+			cfg->target_addr);
 		return false;
+	}
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 3;
@@ -1037,9 +1044,6 @@ bool mp2971_set_vout_command(sensor_cfg *cfg, uint16_t vout)
 	i2c_msg.data[0] = PMBUS_VOUT_COMMAND;
 	i2c_msg.data[1] = vout & 0xFF;
 	i2c_msg.data[2] = (vout >> 8) & 0xFF;
-	LOG_INF("bus:%x addr:%x offset:%x data[0]:%x data[1]:%x data[2]:%x\n", i2c_msg.bus,
-		i2c_msg.target_addr, cfg->offset, i2c_msg.data[0], i2c_msg.data[1],
-		i2c_msg.data[2]);
 
 	if (i2c_master_write(&i2c_msg, retry)) {
 		LOG_ERR("Write vout command failed from dev: 0x%x", cfg->target_addr);

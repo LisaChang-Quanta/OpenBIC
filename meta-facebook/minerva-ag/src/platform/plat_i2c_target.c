@@ -43,6 +43,12 @@
 #define AEGIS_CARRIER_BOARD_ID 0x0000
 #define AEGIS_CPLD_ADDR (0x4C >> 1)
 
+#define POLLING_TEMEMETRY_STACK_SIZE 1024
+#define TEMEMETRY_POLLING_INTERVAL_MS 100 // 1ms second polling interval
+K_THREAD_STACK_DEFINE(telemetry_polling_stack, POLLING_TEMEMETRY_STACK_SIZE);
+struct k_thread telemetry_polling_thread;
+k_tid_t telemetry_polling_tid;
+
 typedef struct __attribute__((__packed__)) {
 	uint8_t device_type;
 	uint8_t register_layout_version;
@@ -329,3 +335,52 @@ const struct _i2c_target_config I2C_TARGET_CONFIG_TABLE[MAX_TARGET_NUM] = {
 	{ 0xFF, 0xA },
 	{ 0xFF, 0xA },
 };
+
+void poll_telemetry_registers()
+{
+	LOG_INF("poll_telemetry_registers start");
+
+	int current_loop = 0;
+
+	while (1) {
+		/* Sleep for the polling interval */
+		k_msleep(TEMEMETRY_POLLING_INTERVAL_MS);
+
+		for (size_t i = 0; i < 7; i++) {
+			I2C_MSG i2c_msg = { 0 };
+			uint8_t retry = 3;
+			i2c_msg.bus = I2C_BUS6;
+			i2c_msg.target_addr = (0x40 >> 1);
+			i2c_msg.tx_len = 1;
+			i2c_msg.rx_len = 255;
+			i2c_msg.data[0] = i;
+
+			if (i2c_master_read(&i2c_msg, retry)) {
+				LOG_ERR("LOOP %d: response received for 0x%02X fail", current_loop,
+					i);
+				continue;
+			}
+
+			if (current_loop % 100 == 0) {
+				LOG_INF("LOOP %d: response received for 0x%02X success",
+					current_loop, i);
+			}
+
+			// LOG_HEXDUMP_INF(i2c_msg.data, sizeof(i2c_msg.data), "hexdump example:");
+		}
+		current_loop = current_loop + 1;
+	}
+}
+
+void init_telemetry_polling(void)
+{
+	telemetry_polling_tid =
+		k_thread_create(&telemetry_polling_thread, telemetry_polling_stack,
+				K_THREAD_STACK_SIZEOF(telemetry_polling_stack),
+				poll_telemetry_registers, NULL, NULL, NULL,
+				CONFIG_MAIN_THREAD_PRIORITY, 0,
+				K_MSEC(30000)); /* Start accessing CPLD 4 seconds after BIC reboot 
+                   (3-second thread start delay + 1-second CPLD_POLLING_INTERVAL_MS) 
+                   to prevent DC status changes during BIC reboot */
+	k_thread_name_set(&telemetry_polling_thread, "telemetry_polling_thread");
+}

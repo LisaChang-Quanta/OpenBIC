@@ -75,6 +75,7 @@ void pal_post_init()
 	init_load_eeprom_log();
 	init_cpld_polling();
 	sensor_data_table_init();
+	init_telemetry_polling();
 
 	LOG_INF("Init done");
 }

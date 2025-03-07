@@ -25,5 +25,6 @@
 
 void update_sensor_data_0_2_table(void);
 void sensor_data_table_init(void);
+void init_telemetry_polling(void);
 
 #endif

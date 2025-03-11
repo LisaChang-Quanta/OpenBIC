@@ -69,18 +69,16 @@ typedef struct __attribute__((__packed__)) {
 	// The following is a flexible array of sensor entries.
 	// The number of entries is (max_sbi_off + 1)
 	sensor_entry sensor_entries[];
-} plat_sensor_init_data_0_2;
-// size = sizeof(plat_sensor_init_data_0_2) + num_sensors * sizeof(SensorEntry);
+} plat_sensor_init_data_2_5;
+// size = sizeof(plat_sensor_init_data_2_5) + num_sensors * sizeof(SensorEntry);
 // num_sensors = max_sbi_off + 1
 
 typedef struct __attribute__((__packed__)) {
 	uint16_t carrier_board_id; //  MTIA Gen1 - Aegis=0x00
 	uint32_t bic_fw_version;
 	uint32_t cpld_fw_version;
-
-	// FRU section
-} plat_sensor_init_data_0_6;
-// size = sizeof(plat_sensor_init_data_0_6)
+} plat_sensor_init_data_6;
+// size = sizeof(plat_sensor_init_data_6)
 
 LOG_MODULE_REGISTER(plat_i2c_target);
 /* I2C target init-enable table */
@@ -91,134 +89,87 @@ const bool I2C_TARGET_ENABLE_TABLE[MAX_TARGET_NUM] = {
 };
 
 plat_sensor_init_data_0_1 *sensor_init_data_0_1_table[2] = { NULL };
-plat_sensor_init_data_0_2 *sensor_init_data_0_2_table[4] = { NULL };
-plat_sensor_init_data_0_6 *sensor_init_data_0_6_table[1] = { NULL };
+plat_sensor_init_data_2_5 *sensor_init_data_2_5_table[4] = { NULL };
+plat_sensor_init_data_6 *sensor_init_data_6_table[1] = { NULL };
 
-void init_sensor_data_0_1_table()
+void *allocate_sensor_data_table(void **table, size_t size)
 {
-	for (int reg_offset = 0; reg_offset < 2; reg_offset++) {
-		// Calculate num_idx
-		int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (248 * reg_offset);
-		num_idx = (num_idx > 0) ? ((num_idx > 248) ? 248 : num_idx) : 0;
-
-		// Calculate the memory size
-		size_t sensor_init_data_0_1_size =
-			sizeof(plat_sensor_init_data_0_1) + num_idx * sizeof(uint8_t);
-
-		// Release old memory first
-		if (sensor_init_data_0_1_table[reg_offset]) {
-			free(sensor_init_data_0_1_table[reg_offset]);
-			sensor_init_data_0_1_table[reg_offset] = NULL;
-		}
-
-		// Allocate memory
-		sensor_init_data_0_1_table[reg_offset] =
-			(plat_sensor_init_data_0_1 *)malloc(sensor_init_data_0_1_size);
-
-		if (!sensor_init_data_0_1_table[reg_offset]) {
-			LOG_ERR("Memory allocation failed!");
-			return;
-		}
-
-		plat_sensor_init_data_0_1 *sensor_init_data_0_1 =
-			sensor_init_data_0_1_table[reg_offset];
-		sensor_init_data_0_1->device_type = DEVICE_TYPE;
-		sensor_init_data_0_1->register_layout_version = REGISTER_LAYOUT_VERSION;
-		sensor_init_data_0_1->num_idx = num_idx;
-		sensor_init_data_0_1->reserved_1 = 0xFF;
-		sensor_init_data_0_1->sbi = reg_offset * 248;
-		sensor_init_data_0_1->max_pdr_idx = (reg_offset == 0x00) ?
-							    PLAT_SENSOR_NUM_MAX - 2 :
-							    0xFFFF; // PDR indexe is on 0 base
-		memset(sensor_init_data_0_1->sensor_r_len, 4, num_idx * sizeof(uint8_t));
-	}
-}
-
-void init_sensor_data_0_2_table()
-{
-	for (int reg_offset = 0; reg_offset < 4; reg_offset++) {
-		int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (50 * reg_offset);
-		num_idx = (num_idx > 0) ? ((num_idx > 50) ? 50 : num_idx) : 0;
-
-		size_t sensor_init_data_0_2_size =
-			sizeof(plat_sensor_init_data_0_2) + num_idx * sizeof(sensor_entry);
-
-		if (sensor_init_data_0_2_table[reg_offset]) {
-			free(sensor_init_data_0_2_table[reg_offset]);
-			sensor_init_data_0_2_table[reg_offset] = NULL;
-		}
-
-		sensor_init_data_0_2_table[reg_offset] =
-			(plat_sensor_init_data_0_2 *)malloc(sensor_init_data_0_2_size);
-
-		if (!sensor_init_data_0_2_table[reg_offset]) {
-			LOG_ERR("Memory allocation failed!");
-			return;
-		}
-
-		plat_sensor_init_data_0_2 *sensor_init_data_0_2 =
-			sensor_init_data_0_2_table[reg_offset];
-		sensor_init_data_0_2->device_type = DEVICE_TYPE;
-		sensor_init_data_0_2->register_layout_version = REGISTER_LAYOUT_VERSION;
-		sensor_init_data_0_2->sensor_base_index = reg_offset * 50;
-		sensor_init_data_0_2->max_sbi_off = (num_idx > 0) ? num_idx - 1 : 0;
-		if (num_idx > 0) {
-			for (int i = 0; i < num_idx; i++) {
-				sensor_init_data_0_2->sensor_entries[i].sensor_index_offset =
-					i; // sensor_index_offset range: 0~49
-				sensor_init_data_0_2->sensor_entries[i].sensor_value = 0;
-			}
-		}
-	}
-}
-
-void update_sensor_data_0_2_table()
-{
-	for (int reg_offset = 0; reg_offset < 4; reg_offset++) {
-		if (!sensor_init_data_0_2_table[reg_offset]) {
-			continue; // not to operate on NULL
-		}
-
-		int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (50 * reg_offset);
-		num_idx = (num_idx > 0) ? ((num_idx > 50) ? 50 : num_idx) : 0;
-
-		for (int i = 0; i < num_idx; i++) {
-			int sensor_number =
-				sensor_init_data_0_2_table[reg_offset]->sensor_base_index +
-				sensor_init_data_0_2_table[reg_offset]
-					->sensor_entries[i]
-					.sensor_index_offset +
-				1; // sensor number is 1 base
-
-			uint8_t status = SENSOR_UNAVAILABLE;
-			int reading = 0;
-			uint8_t sensor_operational_state = PLDM_SENSOR_STATUSUNKOWN;
-
-			status = pldm_sensor_get_reading_from_cache(sensor_number, &reading,
-								    &sensor_operational_state);
-
-			sensor_init_data_0_2_table[reg_offset]->sensor_entries[i].sensor_value =
-				(status == SENSOR_READ_SUCCESS) ? reading : 0xFFFFFFFF;
-		}
-	}
-}
-
-void init_sensor_data_0_6_table()
-{
-	size_t sensor_init_data_0_6_size = sizeof(plat_sensor_init_data_0_6);
-
-	if (sensor_init_data_0_6_table[0]) {
-		free(sensor_init_data_0_6_table[0]);
-		sensor_init_data_0_6_table[0] = NULL;
+	if (*table) {
+		free(*table);
+		*table = NULL;
 	}
 
-	sensor_init_data_0_6_table[0] =
-		(plat_sensor_init_data_0_6 *)malloc(sensor_init_data_0_6_size);
-
-	if (!sensor_init_data_0_6_table[0]) {
+	*table = malloc(size);
+	if (!*table) {
 		LOG_ERR("Memory allocation failed!");
-		return;
+		return NULL;
 	}
+	return *table;
+}
+
+void initialize_sensor_data_0_1(int table_index)
+{
+	// Calculate num_idx
+	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (248 * table_index);
+	num_idx = (num_idx > 0) ? ((num_idx > 248) ? 248 : num_idx) : 0;
+
+	// Calculate the memory size
+	size_t table_size = sizeof(plat_sensor_init_data_0_1) + num_idx * sizeof(uint8_t);
+	plat_sensor_init_data_0_1 *sensor_data = allocate_sensor_data_table(
+		(void **)&sensor_init_data_0_1_table[table_index], table_size);
+
+	if (!sensor_data)
+		return;
+
+	sensor_data->device_type = DEVICE_TYPE;
+	sensor_data->register_layout_version = REGISTER_LAYOUT_VERSION;
+	sensor_data->num_idx = num_idx;
+	sensor_data->reserved_1 = 0xFF;
+	sensor_data->sbi = table_index * 248;
+	sensor_data->max_pdr_idx =
+		(table_index == 0x00) ? PLAT_SENSOR_NUM_MAX - 2 : 0xFFFF; // PDR indexe is on 0 base
+	memset(sensor_data->sensor_r_len, 4, num_idx * sizeof(uint8_t));
+}
+
+void initialize_sensor_data_2_5(int table_index)
+{
+	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (50 * table_index);
+	num_idx = (num_idx > 0) ? ((num_idx > 50) ? 50 : num_idx) : 0;
+
+	size_t table_size = sizeof(plat_sensor_init_data_2_5) + num_idx * sizeof(sensor_entry);
+	plat_sensor_init_data_2_5 *sensor_data = allocate_sensor_data_table(
+		(void **)&sensor_init_data_2_5_table[table_index], table_size);
+
+	if (!sensor_data)
+		return;
+
+	sensor_data->device_type = DEVICE_TYPE;
+	sensor_data->register_layout_version = REGISTER_LAYOUT_VERSION;
+	sensor_data->sensor_base_index = table_index * 50;
+	sensor_data->max_sbi_off = (num_idx > 0) ? num_idx - 1 : 0;
+	if (num_idx > 0) {
+		for (int i = 0; i < num_idx; i++) {
+			sensor_data->sensor_entries[i].sensor_index_offset =
+				i; // sensor_index_offset range: 0~49
+			sensor_data->sensor_entries[i].sensor_value = 0x00000000;
+		}
+	}
+}
+
+void initialize_sensor_data_6(int table_index)
+{
+	size_t table_size = sizeof(plat_sensor_init_data_6);
+	if (sensor_init_data_6_table[table_index]) {
+		free(sensor_init_data_6_table[table_index]);
+		sensor_init_data_6_table[table_index] = NULL;
+	}
+
+	sensor_init_data_6_table[0] = (plat_sensor_init_data_6 *)malloc(table_size);
+	plat_sensor_init_data_6 *sensor_data = allocate_sensor_data_table(
+		(void **)&sensor_init_data_6_table[table_index], table_size);
+
+	if (!sensor_data)
+		return;
 
 	uint8_t data[4] = { 0 };
 	uint32_t bic_version = 0;
@@ -231,10 +182,68 @@ void init_sensor_data_0_6_table()
 	bic_version =
 		(BIC_FW_YEAR_MSB << 24) | (BIC_FW_YEAR_LSB << 16) | (BIC_FW_WEEK << 8) | BIC_FW_VER;
 
-	plat_sensor_init_data_0_6 *sensor_init_data_0_6 = sensor_init_data_0_6_table[0];
-	sensor_init_data_0_6->carrier_board_id = AEGIS_CARRIER_BOARD_ID;
-	sensor_init_data_0_6->bic_fw_version = bic_version;
-	sensor_init_data_0_6->cpld_fw_version = cpld_version;
+	sensor_data->carrier_board_id = AEGIS_CARRIER_BOARD_ID;
+	sensor_data->bic_fw_version = bic_version;
+	sensor_data->cpld_fw_version = cpld_version;
+}
+
+void update_sensor_data_0_2_table()
+{
+	for (int table_index = 0; table_index < 4; table_index++) {
+		if (!sensor_init_data_2_5_table[table_index])
+			continue;
+
+		plat_sensor_init_data_2_5 *sensor_data = sensor_init_data_2_5_table[table_index];
+		int num_idx = sensor_data->max_sbi_off + 1;
+
+		for (int i = 0; i < num_idx; i++) {
+			int sensor_number =
+				sensor_data->sensor_base_index + i + 1; // sensor number is 1 base
+			uint8_t status = SENSOR_UNAVAILABLE;
+			int reading = 0;
+			uint8_t sensor_operational_state = PLDM_SENSOR_STATUSUNKOWN;
+
+			status = pldm_sensor_get_reading_from_cache(sensor_number, &reading,
+								    &sensor_operational_state);
+			sensor_data->sensor_entries[i].sensor_value =
+				(status == SENSOR_READ_SUCCESS) ? reading : 0xFFFFFFFF;
+		}
+	}
+}
+
+size_t get_sensor_data_size(uint8_t reg_offset)
+{
+	switch (reg_offset) {
+	case 0:
+	case 1:
+		return sizeof(plat_sensor_init_data_0_1) +
+		       sensor_init_data_0_1_table[reg_offset]->num_idx * sizeof(uint8_t);
+	case 2:
+	case 3:
+	case 4:
+	case 5: {
+		plat_sensor_init_data_2_5 *sensor_data = sensor_init_data_2_5_table[reg_offset - 2];
+		if (sensor_data->max_sbi_off > 0)
+			return sizeof(plat_sensor_init_data_2_5) +
+			       (sensor_data->max_sbi_off + 1) * sizeof(sensor_entry);
+		else
+			return sizeof(plat_sensor_init_data_2_5);
+	}
+	case 6:
+		return sizeof(plat_sensor_init_data_6);
+	default:
+		return 0;
+	}
+}
+
+void copy_sensor_data_to_buffer(struct i2c_target_data *data, uint8_t reg_offset)
+{
+	size_t struct_size = get_sensor_data_size(reg_offset);
+	if (struct_size > sizeof(data->target_rd_msg.msg)) {
+		struct_size = sizeof(data->target_rd_msg.msg);
+	}
+	data->target_rd_msg.msg_length = struct_size;
+	memcpy(data->target_rd_msg.msg, sensor_init_data_0_1_table[reg_offset], struct_size);
 }
 
 static bool command_reply_data_handle(void *arg)
@@ -246,62 +255,16 @@ static bool command_reply_data_handle(void *arg)
 	/* Only check fisrt byte from received data */
 	if (data->wr_buffer_idx == 1) {
 		uint8_t reg_offset = data->target_wr_msg.msg[0];
-		switch (reg_offset) {
-		case 0x00:
-		case 0x01: {
-			size_t struct_size =
-				sizeof(plat_sensor_init_data_0_1) +
-				sensor_init_data_0_1_table[reg_offset]->num_idx * sizeof(uint8_t);
-
-			// Make sure the target buffer is not exceeded when reading
-			if (struct_size > sizeof(data->target_rd_msg.msg)) {
-				struct_size = sizeof(data->target_rd_msg.msg);
-			}
-
-			data->target_rd_msg.msg_length = struct_size;
-			memcpy(data->target_rd_msg.msg, sensor_init_data_0_1_table[reg_offset],
-			       struct_size);
-		} break;
-		case 0x02:
-		case 0x03:
-		case 0x04:
-		case 0x05: {
-			size_t struct_size;
-			if (sensor_init_data_0_2_table[reg_offset - 2]->max_sbi_off == 0) {
-				struct_size = sizeof(plat_sensor_init_data_0_2);
-			} else {
-				struct_size =
-					sizeof(plat_sensor_init_data_0_2) +
-					(sensor_init_data_0_2_table[reg_offset - 2]->max_sbi_off +
-					 1) * sizeof(sensor_entry);
-			}
-
-			if (struct_size > sizeof(data->target_rd_msg.msg)) {
-				struct_size = sizeof(data->target_rd_msg.msg);
-			}
-
-			data->target_rd_msg.msg_length = struct_size;
-			memcpy(data->target_rd_msg.msg, sensor_init_data_0_2_table[reg_offset - 2],
-			       struct_size);
-
-		} break;
-		case 0x06: {
-			size_t struct_size;
-			struct_size = sizeof(plat_sensor_init_data_0_6);
-
-			if (struct_size > sizeof(data->target_rd_msg.msg)) {
-				struct_size = sizeof(data->target_rd_msg.msg);
-			}
-
-			data->target_rd_msg.msg_length = struct_size;
-			memcpy(data->target_rd_msg.msg, sensor_init_data_0_6_table[0], struct_size);
-
-		} break;
-		default:
-			data->target_rd_msg.msg_length = 20;
+		copy_sensor_data_to_buffer(data, reg_offset);
+	}
+	if (data->wr_buffer_idx == 2) {
+		data->target_rd_msg.msg_length = 20;
+		if (data->target_wr_msg.msg[1] == data->target_wr_msg.msg[0] * 2) {
 			for (int i = 0; i < 20; i++)
 				data->target_rd_msg.msg[i] = data->target_wr_msg.msg[0] + i;
-			break;
+		} else {
+			for (int i = 0; i < 20; i++)
+				data->target_rd_msg.msg[i] = data->target_wr_msg.msg[0] + 2 * i;
 		}
 	}
 	return false;
@@ -309,9 +272,12 @@ static bool command_reply_data_handle(void *arg)
 
 void sensor_data_table_init(void)
 {
-	init_sensor_data_0_1_table();
-	init_sensor_data_0_2_table();
-	init_sensor_data_0_6_table();
+	for (int i = 0; i < 2; i++)
+		initialize_sensor_data_0_1(i);
+	for (int i = 0; i < 4; i++)
+		initialize_sensor_data_2_5(i);
+	for (int i = 0; i < 1; i++)
+		initialize_sensor_data_6(i);
 }
 
 /* I2C target init-config table */

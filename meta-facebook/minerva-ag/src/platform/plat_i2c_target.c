@@ -92,23 +92,29 @@ plat_sensor_init_data_0_1 *sensor_init_data_0_1_table[2] = { NULL };
 plat_sensor_init_data_2_5 *sensor_init_data_2_5_table[4] = { NULL };
 plat_sensor_init_data_6 *sensor_init_data_6_table[1] = { NULL };
 
-void *allocate_sensor_data_table(void **table, size_t size)
+void *allocate_sensor_data_table(void **buffer, size_t buffer_size)
 {
-	if (*table) {
-		free(*table);
-		*table = NULL;
+	if (*buffer) {
+		free(*buffer);
+		*buffer = NULL;
 	}
 
-	*table = malloc(size);
-	if (!*table) {
+	*buffer = malloc(buffer_size);
+	if (!*buffer) {
 		LOG_ERR("Memory allocation failed!");
 		return NULL;
 	}
-	return *table;
+	return *buffer;
 }
 
-void initialize_sensor_data_0_1(int table_index)
+bool initialize_sensor_data_0_1(telemetry_info *telemetry_info, void **buffer, uint8_t *buffer_size)
 {
+	CHECK_NULL_ARG_WITH_RETURN(telemetry_info, false);
+
+	int table_index = telemetry_info->telemetry_offset - SENSOR_INIT_DATA_0_REG;
+	if (table_index < 0 || table_index >= 2)
+		return false;
+
 	// Calculate num_idx
 	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (248 * table_index);
 	num_idx = (num_idx > 0) ? ((num_idx > 248) ? 248 : num_idx) : 0;
@@ -117,9 +123,8 @@ void initialize_sensor_data_0_1(int table_index)
 	size_t table_size = sizeof(plat_sensor_init_data_0_1) + num_idx * sizeof(uint8_t);
 	plat_sensor_init_data_0_1 *sensor_data = allocate_sensor_data_table(
 		(void **)&sensor_init_data_0_1_table[table_index], table_size);
-
 	if (!sensor_data)
-		return;
+		return false;
 
 	sensor_data->device_type = DEVICE_TYPE;
 	sensor_data->register_layout_version = REGISTER_LAYOUT_VERSION;
@@ -129,19 +134,28 @@ void initialize_sensor_data_0_1(int table_index)
 	sensor_data->max_pdr_idx =
 		(table_index == 0x00) ? PLAT_SENSOR_NUM_MAX - 2 : 0xFFFF; // PDR indexe is on 0 base
 	memset(sensor_data->sensor_r_len, 4, num_idx * sizeof(uint8_t));
+
+	*buffer = (void *)sensor_init_data_0_1_table[table_index];
+	*buffer_size = (uint8_t)table_size;
+	return true;
 }
 
-void initialize_sensor_data_2_5(int table_index)
+bool initialize_sensor_data_2_5(telemetry_info *telemetry_info, void **buffer, uint8_t *buffer_size)
 {
+	CHECK_NULL_ARG_WITH_RETURN(telemetry_info, false);
+
+	int table_index = telemetry_info->telemetry_offset - SENSOR_READING_0_REG;
+	if (table_index < 0 || table_index >= 4)
+		return false;
+
 	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (50 * table_index);
 	num_idx = (num_idx > 0) ? ((num_idx > 50) ? 50 : num_idx) : 0;
 
 	size_t table_size = sizeof(plat_sensor_init_data_2_5) + num_idx * sizeof(sensor_entry);
 	plat_sensor_init_data_2_5 *sensor_data = allocate_sensor_data_table(
 		(void **)&sensor_init_data_2_5_table[table_index], table_size);
-
 	if (!sensor_data)
-		return;
+		return false;
 
 	sensor_data->device_type = DEVICE_TYPE;
 	sensor_data->register_layout_version = REGISTER_LAYOUT_VERSION;
@@ -154,29 +168,32 @@ void initialize_sensor_data_2_5(int table_index)
 			sensor_data->sensor_entries[i].sensor_value = 0x00000000;
 		}
 	}
+
+	*buffer = (void *)sensor_init_data_2_5_table[table_index];
+	*buffer_size = (uint8_t)table_size;
+	return true;
 }
 
-void initialize_sensor_data_6(int table_index)
+bool initialize_sensor_data_6(telemetry_info *telemetry_info, void **buffer, uint8_t *buffer_size)
 {
-	size_t table_size = sizeof(plat_sensor_init_data_6);
-	if (sensor_init_data_6_table[table_index]) {
-		free(sensor_init_data_6_table[table_index]);
-		sensor_init_data_6_table[table_index] = NULL;
-	}
+	CHECK_NULL_ARG_WITH_RETURN(telemetry_info, false);
 
-	sensor_init_data_6_table[0] = (plat_sensor_init_data_6 *)malloc(table_size);
+	int table_index = telemetry_info->telemetry_offset - INVENTORY_IDS_REG;
+	if (table_index < 0 || table_index >= 1)
+		return false;
+
+	size_t table_size = sizeof(plat_sensor_init_data_6);
 	plat_sensor_init_data_6 *sensor_data = allocate_sensor_data_table(
 		(void **)&sensor_init_data_6_table[table_index], table_size);
-
 	if (!sensor_data)
-		return;
+		return false;
 
 	uint8_t data[4] = { 0 };
 	uint32_t bic_version = 0;
 	uint32_t cpld_version = 0;
 	if (!plat_i2c_read(I2C_BUS5, AEGIS_CPLD_ADDR, 0x44, data, 4)) {
 		LOG_ERR("Failed to read cpld version from cpld");
-		return;
+		return false;
 	}
 	cpld_version = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
 	bic_version =
@@ -185,6 +202,10 @@ void initialize_sensor_data_6(int table_index)
 	sensor_data->carrier_board_id = AEGIS_CARRIER_BOARD_ID;
 	sensor_data->bic_fw_version = bic_version;
 	sensor_data->cpld_fw_version = cpld_version;
+
+	*buffer = (void *)sensor_init_data_6_table[table_index];
+	*buffer_size = (uint8_t)table_size;
+	return true;
 }
 
 void update_sensor_data_0_2_table()
@@ -211,40 +232,32 @@ void update_sensor_data_0_2_table()
 	}
 }
 
-size_t get_sensor_data_size(uint8_t reg_offset)
-{
-	switch (reg_offset) {
-	case 0:
-	case 1:
-		return sizeof(plat_sensor_init_data_0_1) +
-		       sensor_init_data_0_1_table[reg_offset]->num_idx * sizeof(uint8_t);
-	case 2:
-	case 3:
-	case 4:
-	case 5: {
-		plat_sensor_init_data_2_5 *sensor_data = sensor_init_data_2_5_table[reg_offset - 2];
-		if (sensor_data->max_sbi_off > 0)
-			return sizeof(plat_sensor_init_data_2_5) +
-			       (sensor_data->max_sbi_off + 1) * sizeof(sensor_entry);
-		else
-			return sizeof(plat_sensor_init_data_2_5);
-	}
-	case 6:
-		return sizeof(plat_sensor_init_data_6);
-	default:
-		return 0;
-	}
-}
-
-void copy_sensor_data_to_buffer(struct i2c_target_data *data, uint8_t reg_offset)
-{
-	size_t struct_size = get_sensor_data_size(reg_offset);
-	if (struct_size > sizeof(data->target_rd_msg.msg)) {
-		struct_size = sizeof(data->target_rd_msg.msg);
-	}
-	data->target_rd_msg.msg_length = struct_size;
-	memcpy(data->target_rd_msg.msg, sensor_init_data_0_1_table[reg_offset], struct_size);
-}
+telemetry_info telemetry_info_table[] = {
+	{ SENSOR_INIT_DATA_0_REG, 0x00, .sensor_data_init = initialize_sensor_data_0_1 },
+	{ SENSOR_INIT_DATA_1_REG, 0x00, .sensor_data_init = initialize_sensor_data_0_1 },
+	{ SENSOR_READING_0_REG, 0x00, .sensor_data_init = initialize_sensor_data_2_5 },
+	{ SENSOR_READING_1_REG, 0x00, .sensor_data_init = initialize_sensor_data_2_5 },
+	{ SENSOR_READING_2_REG, 0x00, .sensor_data_init = initialize_sensor_data_2_5 },
+	{ SENSOR_READING_3_REG, 0x00, .sensor_data_init = initialize_sensor_data_2_5 },
+	{ INVENTORY_IDS_REG, 0x00, .sensor_data_init = initialize_sensor_data_6 },
+	{ OWL_NIC_MAC_ADDRESSES_REG },
+	{ STRAP_CAPABILTITY_REG },
+	{ WRITE_STRAP_PIN_VALUE_REG },
+	{ FRU_BOARD_PART_NUMBER_REG },
+	{ FRU_BOARD_SERIAL_NUMBER_REG },
+	{ FRU_BOARD_PRODUCT_NAME_REG },
+	{ FRU_BOARD_CUSTOM_DATA_1_REG },
+	{ FRU_BOARD_CUSTOM_DATA_2_REG },
+	{ FRU_BOARD_CUSTOM_DATA_3_REG },
+	{ FRU_BOARD_CUSTOM_DATA_4_REG },
+	{ FRU_PRODUCT_NAME_REG },
+	{ FRU_PRODUCT_PART_NUMBER_REG },
+	{ FRU_PRODUCT_PART_VERSION_REG },
+	{ FRU_PRODUCT_SERIAL_NUMBER_REG },
+	{ FRU_PRODUCT_ASSET_TAG_REG },
+	{ FRU_PRODUCT_CUSTOM_DATA_1_REG },
+	{ FRU_PRODUCT_CUSTOM_DATA_2_REG },
+};
 
 static bool command_reply_data_handle(void *arg)
 {
@@ -253,31 +266,73 @@ static bool command_reply_data_handle(void *arg)
 	/*TODO: put board telemetry here*/
 
 	/* Only check fisrt byte from received data */
-	if (data->wr_buffer_idx == 1) {
-		uint8_t reg_offset = data->target_wr_msg.msg[0];
-		copy_sensor_data_to_buffer(data, reg_offset);
-	}
-	if (data->wr_buffer_idx == 2) {
-		data->target_rd_msg.msg_length = 20;
-		if (data->target_wr_msg.msg[1] == data->target_wr_msg.msg[0] * 2) {
+	if (data->wr_buffer_idx >= 1) {
+		if (data->wr_buffer_idx == 1) {
+			uint8_t reg_offset = data->target_wr_msg.msg[0];
+			size_t struct_size = telemetry_info_table[reg_offset].data_size;
+			// Make sure the target buffer is not exceeded when reading
+			if (struct_size > sizeof(data->target_rd_msg.msg)) {
+				struct_size = sizeof(data->target_rd_msg.msg);
+			}
+			switch (reg_offset) {
+			case SENSOR_INIT_DATA_0_REG:
+			case SENSOR_INIT_DATA_1_REG: {
+				data->target_rd_msg.msg_length = struct_size;
+				memcpy(data->target_rd_msg.msg,
+				       sensor_init_data_0_1_table[reg_offset -
+								  SENSOR_INIT_DATA_0_REG],
+				       struct_size);
+			} break;
+			case SENSOR_READING_0_REG:
+			case SENSOR_READING_1_REG:
+			case SENSOR_READING_2_REG:
+			case SENSOR_READING_3_REG: {
+				data->target_rd_msg.msg_length = struct_size;
+				memcpy(data->target_rd_msg.msg,
+				       sensor_init_data_2_5_table[reg_offset - SENSOR_READING_0_REG],
+				       struct_size);
+
+			} break;
+			case INVENTORY_IDS_REG: {
+				data->target_rd_msg.msg_length = struct_size;
+				memcpy(data->target_rd_msg.msg,
+				       sensor_init_data_6_table[reg_offset - INVENTORY_IDS_REG],
+				       struct_size);
+
+			} break;
+			default:
+				LOG_ERR("Unknown reg offset: 0x%02x", reg_offset);
+				data->target_rd_msg.msg_length = 1;
+				data->target_rd_msg.msg[0] = 0xFF;
+				break;
+			}
+		} else if (data->wr_buffer_idx == 3) {
+			data->target_rd_msg.msg_length = 20;
 			for (int i = 0; i < 20; i++)
 				data->target_rd_msg.msg[i] = data->target_wr_msg.msg[0] + i;
 		} else {
-			for (int i = 0; i < 20; i++)
-				data->target_rd_msg.msg[i] = data->target_wr_msg.msg[0] + 2 * i;
+			LOG_ERR("Received data length: 0x%02x", data->wr_buffer_idx);
 		}
 	}
+
 	return false;
 }
 
 void sensor_data_table_init(void)
 {
-	for (int i = 0; i < 2; i++)
-		initialize_sensor_data_0_1(i);
-	for (int i = 0; i < 4; i++)
-		initialize_sensor_data_2_5(i);
-	for (int i = 0; i < 1; i++)
-		initialize_sensor_data_6(i);
+	uint8_t buffer_size = 0;
+	void **buffer_ptr = NULL;
+	for (int i = 0; i < ARRAY_SIZE(telemetry_info_table); i++) {
+		if (telemetry_info_table[i].sensor_data_init) {
+			bool success = telemetry_info_table[i].sensor_data_init(
+				&telemetry_info_table[i], buffer_ptr, &buffer_size);
+			if (!success) {
+				LOG_ERR("initialize sensor data at offset 0x%02X",
+					telemetry_info_table[i].telemetry_offset);
+			}
+			telemetry_info_table[i].data_size = buffer_size;
+		}
+	}
 }
 
 /* I2C target init-config table */

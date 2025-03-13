@@ -22,6 +22,8 @@
 #include "hal_i2c.h"
 #include "pmbus.h"
 #include "mp2971.h"
+#include "plat_gpio.h"
+#include "hal_gpio.h"
 
 LOG_MODULE_REGISTER(mp2971);
 
@@ -782,6 +784,9 @@ float get_resolution(sensor_cfg *cfg)
 		return SENSOR_FAIL_TO_ACCESS;
 	}
 
+	uint8_t data_0 = msg.data[0];
+	uint8_t data_1 = msg.data[1];
+
 	mfr_reso_set = (msg.data[1] << 8) | msg.data[0];
 
 	uint8_t vout_reso_set;
@@ -806,6 +811,9 @@ float get_resolution(sensor_cfg *cfg)
 			vout_reso = 0.001;
 		} else {
 			LOG_WRN("vout_reso_set not supported: 0x%x", vout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 		if (iout_reso_set == 0) {
@@ -816,6 +824,9 @@ float get_resolution(sensor_cfg *cfg)
 			iout_reso = 0.5;
 		} else {
 			LOG_WRN("iout_reso_set not supported: 0x%x", iout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 		if (iin_reso_set == 0) {
@@ -826,6 +837,9 @@ float get_resolution(sensor_cfg *cfg)
 			iin_reso = 0.125;
 		} else {
 			LOG_WRN("iin_reso_set not supported: 0x%x", iin_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 		if (pout_reso_set == 0) {
@@ -836,6 +850,9 @@ float get_resolution(sensor_cfg *cfg)
 			pout_reso = 0.5;
 		} else {
 			LOG_WRN("pout_reso_set not supported: 0x%x", pout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 	} else if (page == 1) {
@@ -847,6 +864,9 @@ float get_resolution(sensor_cfg *cfg)
 			vout_reso = 0.001;
 		} else {
 			LOG_WRN("vout_reso_set not supported: 0x%x", vout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 		if (iout_reso_set == 0) {
@@ -855,6 +875,9 @@ float get_resolution(sensor_cfg *cfg)
 			iout_reso = 0.5;
 		} else {
 			LOG_WRN("iout_reso_set not supported: 0x%x", iout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
 		iin_reso = 0.125;
@@ -865,9 +888,20 @@ float get_resolution(sensor_cfg *cfg)
 			pout_reso = 0.5;
 		} else {
 			LOG_WRN("pout_reso_set not supported: 0x%x", pout_reso_set);
+			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
+				cfg->num, page, data_0, data_1);
+			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
+		LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x", cfg->num, page,
+			data_0, data_1);
+		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
+	}
+
+	if (gpio_get(RSVD_GPIO_2_R) == GPIO_LOW) {
+		k_msleep(10);
+		gpio_set(RSVD_GPIO_2_R, GPIO_HIGH);
 	}
 
 	uint8_t offset = cfg->offset;
@@ -975,6 +1009,10 @@ bool mp2971_vid_to_direct(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt)
 		}
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
+		LOG_WRN("sensor_num[0x%x], page[%x], mp2971_vid_to_direct()", cfg->num, page);
+		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
+		k_msleep(10);
+		gpio_set(RSVD_GPIO_2_R, GPIO_HIGH);
 		return ret;
 	}
 
@@ -1066,6 +1104,10 @@ bool mp2971_direct_to_vid(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt)
 		}
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
+		LOG_WRN("sensor_num[0x%x], page[%x], mp2971_direct_to_vid()", cfg->num, page);
+		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
+		k_msleep(10);
+		gpio_set(RSVD_GPIO_2_R, GPIO_HIGH);
 		return ret;
 	}
 

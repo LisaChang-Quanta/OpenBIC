@@ -109,6 +109,8 @@ struct mp2856_config {
 	struct mp2856_data *pdata;
 };
 
+extern uint8_t i2c_last_wr[3];
+
 bool mp2971_vid_to_direct(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt);
 bool mp2971_direct_to_vid(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt);
 
@@ -813,6 +815,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("vout_reso_set not supported: 0x%x", vout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -826,6 +831,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("iout_reso_set not supported: 0x%x", iout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -839,6 +847,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("iin_reso_set not supported: 0x%x", iin_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -852,6 +863,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("pout_reso_set not supported: 0x%x", pout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -866,6 +880,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("vout_reso_set not supported: 0x%x", vout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -877,6 +894,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("iout_reso_set not supported: 0x%x", iout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 
@@ -890,6 +910,9 @@ float get_resolution(sensor_cfg *cfg)
 			LOG_WRN("pout_reso_set not supported: 0x%x", pout_reso_set);
 			LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x",
 				cfg->num, page, data_0, data_1);
+			for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+				LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+			}
 			gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		}
 	} else {
@@ -897,6 +920,9 @@ float get_resolution(sensor_cfg *cfg)
 		LOG_WRN("sensor_num[0x%x], page[%x], mfr_reso_set: [0]0x%x [1]0x%x", cfg->num, page,
 			data_0, data_1);
 		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
+		for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+			LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+		}
 	}
 
 	if (gpio_get(RSVD_GPIO_2_R) == GPIO_LOW) {
@@ -1010,6 +1036,9 @@ bool mp2971_vid_to_direct(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt)
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
 		LOG_WRN("sensor_num[0x%x], page[%x], mp2971_vid_to_direct()", cfg->num, page);
+		for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+			LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+		}
 		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		k_msleep(10);
 		gpio_set(RSVD_GPIO_2_R, GPIO_HIGH);
@@ -1105,6 +1134,9 @@ bool mp2971_direct_to_vid(sensor_cfg *cfg, uint8_t rail, uint16_t *millivolt)
 	} else {
 		LOG_WRN("Page not supported: 0x%d", page);
 		LOG_WRN("sensor_num[0x%x], page[%x], mp2971_direct_to_vid()", cfg->num, page);
+		for (int j = 0; j < ARRAY_SIZE(i2c_last_wr); j++) {
+			LOG_WRN("i2c_last_wr[%d]: 0x%x", j, i2c_last_wr[j]);
+		}
 		gpio_set(RSVD_GPIO_2_R, GPIO_LOW);
 		k_msleep(10);
 		gpio_set(RSVD_GPIO_2_R, GPIO_HIGH);

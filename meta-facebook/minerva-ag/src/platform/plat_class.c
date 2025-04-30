@@ -89,11 +89,12 @@ void init_board_type(void)
 
 void init_board_stage(void)
 {
-	uint8_t board_stage_data = BOARD_STAGE_UNKNOWN;
-	//get CPLD BOARD_STAGE
-	if (!plat_read_cpld(AEGIS_CPLD_BOARD_REV_ID_REG, &board_stage_data)) {
-		LOG_ERR("Failed to get CPLD BOARD_STAGE 0x%02X", AEGIS_CPLD_BOARD_REV_ID_REG);
-	}
+	uint8_t board_stage_data = FAB3_PVT;
+	// uint8_t board_stage_data = BOARD_STAGE_UNKNOWN;
+	// //get CPLD BOARD_STAGE
+	// if (!plat_read_cpld(AEGIS_CPLD_BOARD_REV_ID_REG, &board_stage_data)) {
+	// 	LOG_ERR("Failed to get CPLD BOARD_STAGE 0x%02X", AEGIS_CPLD_BOARD_REV_ID_REG);
+	// }
 
 	//print board stage word
 	switch (board_stage_data) {
@@ -121,82 +122,84 @@ void init_board_stage(void)
 
 void init_vr_vendor_type(void)
 {
-	//get CPLD VR_VENDOR_TYPE
-	if (!plat_read_cpld(AEGIS_CPLD_VR_VENDOR_TYPE_REG, &vr_vender_type)) {
-		LOG_ERR("Failed to get CPLD VR_VENDOR_TYPE 0x%02X", AEGIS_CPLD_VR_VENDOR_TYPE_REG);
-	}
+	ubc_type = UBC_FLEX_BMR313;
+	vr_type = VR_MPS_MP2971_MP29816A;
+	// //get CPLD VR_VENDOR_TYPE
+	// if (!plat_read_cpld(AEGIS_CPLD_VR_VENDOR_TYPE_REG, &vr_vender_type)) {
+	// 	LOG_ERR("Failed to get CPLD VR_VENDOR_TYPE 0x%02X", AEGIS_CPLD_VR_VENDOR_TYPE_REG);
+	// }
 
-	LOG_INF("VR_VENDOR_TYPE = 0x%02X", vr_vender_type);
+	// LOG_INF("VR_VENDOR_TYPE = 0x%02X", vr_vender_type);
 
-	switch (board_stage) {
-	case FAB1_EVT:
-		switch (vr_vender_type) {
-		case DELTA_UBC_AND_MPS_VR:
-			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-			vr_type = VR_MPS_MP2971_MP2891;
-			break;
-		case DELTA_UBC_AND_RNS_VR:
-			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-			vr_type = VR_RNS_ISL69260_RAA228238;
-			break;
-		case MPS_UBC_AND_MPS_VR:
-			ubc_type = UBC_MPS_MPC12109;
-			vr_type = VR_MPS_MP2971_MP2891;
-			break;
-		case MPS_UBC_AND_RNS_VR:
-			ubc_type = UBC_MPS_MPC12109;
-			vr_type = VR_RNS_ISL69260_RAA228238;
-			break;
-		case FLEX_UBC_AND_MPS_VR:
-			ubc_type = UBC_FLEX_BMR313;
-			vr_type = VR_MPS_MP2971_MP2891;
-			break;
-		case FLEX_UBC_AND_RNS_VR:
-			ubc_type = UBC_FLEX_BMR313;
-			vr_type = VR_RNS_ISL69260_RAA228238;
-			break;
-		default:
-			LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
-			break;
-		}
-		break; //case FAB1_EVT
-	case FAB2_DVT:
-	case FAB3_PVT:
-	case FAB4_MP:
-		switch (vr_vender_type) {
-		case DELTA_UBC_AND_MPS_VR:
-			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-			vr_type = VR_MPS_MP2971_MP29816A;
-			break;
-		case DELTA_UBC_AND_RNS_VR:
-			ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
-			vr_type = VR_RNS_ISL69260_RAA228249;
-			break;
-		case MPS_UBC_AND_MPS_VR:
-			ubc_type = UBC_MPS_MPC12109;
-			vr_type = VR_MPS_MP2971_MP29816A;
-			break;
-		case MPS_UBC_AND_RNS_VR:
-			ubc_type = UBC_MPS_MPC12109;
-			vr_type = VR_RNS_ISL69260_RAA228249;
-			break;
-		case FLEX_UBC_AND_MPS_VR:
-			ubc_type = UBC_FLEX_BMR313;
-			vr_type = VR_MPS_MP2971_MP29816A;
-			break;
-		case FLEX_UBC_AND_RNS_VR:
-			ubc_type = UBC_FLEX_BMR313;
-			vr_type = VR_RNS_ISL69260_RAA228249;
-			break;
-		default:
-			LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
-			break;
-		}
-		break; //case FAB2_DVT, FAB3_PVT, FAB4_MP
-	default:
-		LOG_WRN("board stage not supported: 0x%x", board_stage);
-		break;
-	}
+	// switch (board_stage) {
+	// case FAB1_EVT:
+	// 	switch (vr_vender_type) {
+	// 	case DELTA_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+	// 		vr_type = VR_MPS_MP2971_MP2891;
+	// 		break;
+	// 	case DELTA_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+	// 		vr_type = VR_RNS_ISL69260_RAA228238;
+	// 		break;
+	// 	case MPS_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_MPS_MPC12109;
+	// 		vr_type = VR_MPS_MP2971_MP2891;
+	// 		break;
+	// 	case MPS_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_MPS_MPC12109;
+	// 		vr_type = VR_RNS_ISL69260_RAA228238;
+	// 		break;
+	// 	case FLEX_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_FLEX_BMR313;
+	// 		vr_type = VR_MPS_MP2971_MP2891;
+	// 		break;
+	// 	case FLEX_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_FLEX_BMR313;
+	// 		vr_type = VR_RNS_ISL69260_RAA228238;
+	// 		break;
+	// 	default:
+	// 		LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
+	// 		break;
+	// 	}
+	// 	break; //case FAB1_EVT
+	// case FAB2_DVT:
+	// case FAB3_PVT:
+	// case FAB4_MP:
+	// 	switch (vr_vender_type) {
+	// 	case DELTA_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+	// 		vr_type = VR_MPS_MP2971_MP29816A;
+	// 		break;
+	// 	case DELTA_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_DELTA_U50SU4P180PMDAFC;
+	// 		vr_type = VR_RNS_ISL69260_RAA228249;
+	// 		break;
+	// 	case MPS_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_MPS_MPC12109;
+	// 		vr_type = VR_MPS_MP2971_MP29816A;
+	// 		break;
+	// 	case MPS_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_MPS_MPC12109;
+	// 		vr_type = VR_RNS_ISL69260_RAA228249;
+	// 		break;
+	// 	case FLEX_UBC_AND_MPS_VR:
+	// 		ubc_type = UBC_FLEX_BMR313;
+	// 		vr_type = VR_MPS_MP2971_MP29816A;
+	// 		break;
+	// 	case FLEX_UBC_AND_RNS_VR:
+	// 		ubc_type = UBC_FLEX_BMR313;
+	// 		vr_type = VR_RNS_ISL69260_RAA228249;
+	// 		break;
+	// 	default:
+	// 		LOG_WRN("vr vendor type not supported: 0x%x", vr_vender_type);
+	// 		break;
+	// 	}
+	// 	break; //case FAB2_DVT, FAB3_PVT, FAB4_MP
+	// default:
+	// 	LOG_WRN("board stage not supported: 0x%x", board_stage);
+	// 	break;
+	// }
 
 	//print ubc and vr type
 	switch (ubc_type) {

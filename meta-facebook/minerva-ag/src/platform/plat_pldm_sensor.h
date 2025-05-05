@@ -24,10 +24,12 @@
 /* Define sensors address(7 bit) */
 #define UBC1_ADDR (0x28 >> 1)
 #define UBC2_ADDR (0x34 >> 1)
+#define UBC3_ADDR (0x48 >> 1)
+#define UBC4_ADDR (0x4A >> 1)
 
 #define TOP_INLET_TEMP_ADDR (0x92 >> 1)
-#define TOP_OUTLET_TEMP_ADDR (0x9E >> 1)
-#define BOT_INLET_TEMP_ADDR (0x94 >> 1)
+#define TOP_OUTLET_TEMP_ADDR (0x94 >> 1)
+#define BOT_INLET_TEMP_ADDR (0x9E >> 1)
 #define BOT_OUTLET_TEMP_ADDR (0X96 >> 1)
 
 #define ASIC_DIE_ATH_SENSOR_0_TEMP_TMP432_ADDR (0X98 >> 1)
@@ -41,7 +43,7 @@
 #define ASIC_DIE_S_OWL_TEMP_EMC1413_ADDR (0X38 >> 1)
 
 #define VR_P3V3_MP2971_ADDR (0xF6 >> 1)
-#define VR_P3V3_MP2971_FAB3_ADDR (0xD6 >> 1) // Change to 0xD6 at FAB3 board
+#define VR_P3V3_MP2971_FAB3_ADDR (0xF6 >> 1) // Change to 0xD6 at FAB3 board
 #define VR_P3V3_ISL69260_ADDR (0xC0 >> 1)
 
 #define VR_ASIC_P0V85_PVDD_MP2891_ADDR (0x4C >> 1)
@@ -96,11 +98,11 @@
 #define VR_ASIC_P0V75_VDDPHY_HBM1_HBM3_HBM5_ISL69260_ADDR (0xC4 >> 1)
 
 #define VR_ASIC_P0V8_VDDA_PCIE_MP2971_ADDR (0xF2 >> 1)
-#define VR_ASIC_P0V8_VDDA_PCIE_MP2971_FAB3_ADDR (0xD2 >> 1) // Change to 0xD2 at FAB3 board
+#define VR_ASIC_P0V8_VDDA_PCIE_MP2971_FAB3_ADDR (0xF2 >> 1) // Change to 0xD2 at FAB3 board
 #define VR_ASIC_P0V8_VDDA_PCIE_ISL69260_ADDR (0xC6 >> 1)
 
 #define VR_ASIC_P1V2_VDDHTX_PCIE_MP2971_ADDR (0xF2 >> 1)
-#define VR_ASIC_P1V2_VDDHTX_PCIE_MP2971_FAB3_ADDR (0xD2 >> 1) // Change to 0xD2 at FAB3 board
+#define VR_ASIC_P1V2_VDDHTX_PCIE_MP2971_FAB3_ADDR (0xF2 >> 1) // Change to 0xD2 at FAB3 board
 #define VR_ASIC_P1V2_VDDHTX_PCIE_ISL69260_ADDR (0xC6 >> 1)
 
 /* Define the sensor numbers used in this platform */
@@ -115,6 +117,18 @@
 #define UBC2_P12V_OUTPUT_VOLT_V 0x08
 #define UBC2_P12V_CURR_A 0x09
 #define UBC2_P12V_PWR_W 0x0A
+
+#define UBC3_P6V_TEMP_C 0x63
+#define UBC3_P50V_INPUT_VOLT_V 0x64
+#define UBC3_P6V_OUTPUT_VOLT_V 0x65
+#define UBC3_P6V_CURR_A 0x66
+#define UBC3_P6V_PWR_W 0x67
+
+#define UBC4_P6V_TEMP_C 0x068
+#define UBC4_P50V_INPUT_VOLT_V 0x69
+#define UBC4_P6V_OUTPUT_VOLT_V 0x6A
+#define UBC4_P6V_CURR_A 0x6B
+#define UBC4_P6V_PWR_W 0x6C
 
 #define TOP_INLET_TEMP_C 0x0B
 #define TOP_OUTLET_TEMP_C 0x0C
@@ -253,6 +267,7 @@ bool get_plat_sensor_ubc_polling_enable_flag();
 bool get_plat_sensor_temp_polling_enable_flag();
 bool get_plat_sensor_vr_polling_enable_flag();
 bool is_ubc_access(uint8_t sensor_num);
+bool do_not_access(uint8_t sensor_num);
 bool is_temp_access(uint8_t cfg_idx);
 bool is_vr_access(uint8_t sensor_num);
 bool get_sensor_info_by_sensor_id(uint8_t sensor_id, uint8_t *vr_bus, uint8_t *vr_addr,

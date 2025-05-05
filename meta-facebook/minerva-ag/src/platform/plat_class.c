@@ -89,11 +89,12 @@ void init_board_type(void)
 
 void init_board_stage(void)
 {
-	uint8_t board_stage_data = BOARD_STAGE_UNKNOWN;
-	//get CPLD BOARD_STAGE
-	if (!plat_read_cpld(AEGIS_CPLD_BOARD_REV_ID_REG, &board_stage_data)) {
-		LOG_ERR("Failed to get CPLD BOARD_STAGE 0x%02X", AEGIS_CPLD_BOARD_REV_ID_REG);
-	}
+	uint8_t board_stage_data = FAB3_PVT;
+	// uint8_t board_stage_data = BOARD_STAGE_UNKNOWN;
+	// //get CPLD BOARD_STAGE
+	// if (!plat_read_cpld(AEGIS_CPLD_BOARD_REV_ID_REG, &board_stage_data)) {
+	// 	LOG_ERR("Failed to get CPLD BOARD_STAGE 0x%02X", AEGIS_CPLD_BOARD_REV_ID_REG);
+	// }
 
 	//print board stage word
 	switch (board_stage_data) {
@@ -121,12 +122,13 @@ void init_board_stage(void)
 
 void init_vr_vendor_type(void)
 {
-	//get CPLD VR_VENDOR_TYPE
-	if (!plat_read_cpld(AEGIS_CPLD_VR_VENDOR_TYPE_REG, &vr_vender_type)) {
-		LOG_ERR("Failed to get CPLD VR_VENDOR_TYPE 0x%02X", AEGIS_CPLD_VR_VENDOR_TYPE_REG);
-	}
+	vr_vender_type = FLEX_UBC_AND_MPS_VR;
+	// //get CPLD VR_VENDOR_TYPE
+	// if (!plat_read_cpld(AEGIS_CPLD_VR_VENDOR_TYPE_REG, &vr_vender_type)) {
+	// 	LOG_ERR("Failed to get CPLD VR_VENDOR_TYPE 0x%02X", AEGIS_CPLD_VR_VENDOR_TYPE_REG);
+	// }
 
-	LOG_INF("VR_VENDOR_TYPE = 0x%02X", vr_vender_type);
+	// LOG_INF("VR_VENDOR_TYPE = 0x%02X", vr_vender_type);
 
 	switch (board_stage) {
 	case FAB1_EVT:

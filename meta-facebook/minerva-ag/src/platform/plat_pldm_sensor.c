@@ -1032,7 +1032,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC3_P6V_TEMP_C,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC3_ADDR,
 			.offset = PMBUS_READ_TEMPERATURE_1,
@@ -1100,7 +1100,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC3_P50V_INPUT_VOLT_V,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC3_ADDR,
 			.offset = PMBUS_READ_VIN,
@@ -1168,7 +1168,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC3_P6V_OUTPUT_VOLT_V,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC3_ADDR,
 			.offset = PMBUS_READ_VOUT,
@@ -1236,7 +1236,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC3_P6V_CURR_A,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC3_ADDR,
 			.offset = PMBUS_READ_IOUT,
@@ -1305,7 +1305,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC3_P6V_PWR_W,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC3_ADDR,
 			.offset = PMBUS_READ_POUT,
@@ -1373,7 +1373,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC4_P6V_TEMP_C,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC4_ADDR,
 			.offset = PMBUS_READ_TEMPERATURE_1,
@@ -1441,7 +1441,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC4_P50V_INPUT_VOLT_V,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC4_ADDR,
 			.offset = PMBUS_READ_VIN,
@@ -1509,7 +1509,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC4_P6V_OUTPUT_VOLT_V,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC4_ADDR,
 			.offset = PMBUS_READ_VOUT,
@@ -1577,7 +1577,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC4_P6V_CURR_A,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC4_ADDR,
 			.offset = PMBUS_READ_IOUT,
@@ -1646,7 +1646,7 @@ pldm_sensor_info plat_pldm_sensor_ubc_table[] = {
 		.update_time = 0,
 		{
 			.num = UBC4_P6V_PWR_W,
-			.type = sensor_dev_u50su4p180pmdafc,
+			.type = sensor_dev_xdpp1100,
 			.port = I2C_BUS2,
 			.target_addr = UBC4_ADDR,
 			.offset = PMBUS_READ_POUT,
@@ -10455,9 +10455,6 @@ void plat_pldm_sensor_change_ubc_dev()
 			if (index < 10) {
 				plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg.type =
 					sensor_dev_bmr313;
-			} else {
-				plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg.type =
-					sensor_dev_u50su4p180pmdafc;
 			}
 		}
 	} else if (ubc_type == UBC_MPS_MPC12109) {
@@ -10466,9 +10463,6 @@ void plat_pldm_sensor_change_ubc_dev()
 			if (index < 10) {
 				plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg.type =
 					sensor_dev_mpc12109;
-			} else {
-				plat_pldm_sensor_ubc_table[index].pldm_sensor_cfg.type =
-					sensor_dev_u50su4p180pmdafc;
 			}
 		}
 		LOG_INF("UBC_MPS_MPC12109 driver loaded");

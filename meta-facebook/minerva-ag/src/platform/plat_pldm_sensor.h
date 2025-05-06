@@ -43,7 +43,7 @@
 #define ASIC_DIE_S_OWL_TEMP_EMC1413_ADDR (0X38 >> 1)
 
 #define VR_P3V3_MP2971_ADDR (0xF6 >> 1)
-#define VR_P3V3_MP2971_FAB3_ADDR (0xF6 >> 1) // Change to 0xD6 at FAB3 board
+#define VR_P3V3_MP2971_FAB3_ADDR (0xD6 >> 1) // Change to 0xD6 at FAB3 board
 #define VR_P3V3_ISL69260_ADDR (0xC0 >> 1)
 
 #define VR_ASIC_P0V85_PVDD_MP2891_ADDR (0x4C >> 1)

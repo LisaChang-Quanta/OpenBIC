@@ -39,6 +39,7 @@
 #include "plat_hook.h"
 #include "plat_event.h"
 #include "drivers/i2c_npcm4xx.h"
+#include <ctype.h>
 
 LOG_MODULE_REGISTER(plat_fwupdate);
 
@@ -697,4 +698,120 @@ void pal_warm_reset_prepare()
 {
 	LOG_INF("cmd platform warm reset prepare");
 	plat_reset_prepare();
+}
+
+bool pal_firmware_update_supported(uint16_t comp_identifier, const char *new_version_hex)
+{
+	if (comp_identifier == AG_COMPNT_BIC)
+		return false;
+	if (!new_version_hex) {
+		LOG_ERR("Invalid new_version_hex");
+		return false;
+	}
+
+	pldm_fw_update_info_t info = { 0 };
+	uint8_t buf[64] = { 0 };
+	uint8_t len = 0;
+	info.comp_identifier = comp_identifier;
+
+	if (!get_vr_fw_version(&info, buf, &len)) {
+		LOG_ERR("comp_identifier 0x%x not found", comp_identifier);
+		return false;
+	}
+
+	char vr_output[64] = { 0 };
+	memcpy(vr_output, buf, len);
+
+	char *p = strchr(vr_output, ' ');
+	if (!p) {
+		LOG_ERR("Failed to parse version from VR string");
+		return false;
+	}
+	p++;
+
+	char current_version[16] = { 0 };
+	int i = 0;
+	while (*p && *p != ',' && i < sizeof(current_version) - 1) {
+		current_version[i++] = *p++;
+	}
+	current_version[i] = '\0';
+
+	char *remain_p = strstr(vr_output, "Remaining Write:");
+	if (!remain_p) {
+		LOG_ERR("remain not found");
+		return false;
+	}
+
+	remain_p += strlen("Remaining Write:");
+
+	char remain_hex[8] = { 0 };
+	strncpy(remain_hex, remain_p, 4);
+
+	uint16_t remain_val = (uint16_t)strtol(remain_hex, NULL, 16);
+
+	if (strcmp(current_version, new_version_hex) == 0) {
+		LOG_INF("Version same: comp_identifier=0x%x (%s)", comp_identifier,
+			new_version_hex);
+		return false;
+	}
+
+	if (remain_val != 0xffff) {
+		if (remain_val < 10) {
+			LOG_INF("Remain (%d) < 10", remain_val);
+			return false;
+		}
+	}
+
+	LOG_INF("comp_identifier=0x%x, version=%s, remain=%d", comp_identifier, current_version,
+		remain_val);
+	return true;
+}
+
+uint8_t plat_pldm_request_update_check(uint16_t num_of_comp, uint8_t *comp_image_version_str,
+				       uint8_t comp_image_version_str_len)
+{
+	// // TODO: check plat_force_update_flag
+	// if (plat_force_update_flag) {
+	// 	LOG_INF("do not need to check for update");
+	// 	return PLDM_SUCCESS;
+	// }
+
+	const char *comp_ver_str = (const char *)comp_image_version_str;
+	size_t comp_ver_len = comp_image_version_str_len;
+
+	char comp_ver_str_buf[256] = { 0 };
+	if (comp_ver_len >= sizeof(comp_ver_str_buf))
+		comp_ver_len = sizeof(comp_ver_str_buf) - 1;
+
+	memcpy(comp_ver_str_buf, comp_ver_str, comp_ver_len);
+	comp_ver_str_buf[comp_ver_len] = '\0';
+
+	LOG_INF("ComponentVersionString: %s", log_strdup(comp_ver_str_buf));
+
+	char *ver_pos = strstr(comp_ver_str_buf, "ver: ");
+	if (!ver_pos) {
+		LOG_ERR("version not found in ComponentVersionString");
+		return PLDM_FW_UPDATE_CC_UNABLE_TO_INITIATE_UPDATE;
+	}
+
+	ver_pos += 5;
+
+	char new_version_hex[16] = { 0 };
+	int i = 0;
+
+	while (*ver_pos && !isspace((unsigned char)*ver_pos) && i < sizeof(new_version_hex) - 1) {
+		new_version_hex[i++] = *ver_pos++;
+	}
+	new_version_hex[i] = '\0';
+
+	LOG_INF("Parsed new version = %s", log_strdup(new_version_hex));
+
+	bool is_update_supported = pal_firmware_update_supported(num_of_comp, comp_ver_str_buf);
+	if (is_update_supported) {
+		LOG_INF("Firmware update is supported");
+		return PLDM_SUCCESS;
+	} else {
+		LOG_INF("Firmware update is not supported");
+		return PLDM_FW_UPDATE_CC_UNABLE_TO_INITIATE_UPDATE;
+	}
 }

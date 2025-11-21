@@ -1044,16 +1044,6 @@ static uint8_t request_update(void *mctp_inst, uint8_t *buf, uint16_t len, uint8
 	LOG_HEXDUMP_INF(buf + sizeof(struct pldm_request_update_req),
 			req_p->comp_image_set_ver_str_len, "Component image version: ");
 
-	// Platform specific check for request update
-	uint8_t check_result =
-		plat_pldm_request_update_check(req_p->num_of_comp,
-					       buf + sizeof(struct pldm_request_update_req),
-					       req_p->comp_image_set_ver_str_len);
-	if (check_result != PLDM_SUCCESS) {
-		resp_p->completion_code = check_result;
-		goto exit;
-	}
-
 	*resp_len = sizeof(struct pldm_request_update_resp);
 	resp_p->completion_code = PLDM_SUCCESS;
 
@@ -1090,6 +1080,16 @@ static uint8_t pass_component_table(void *mctp_inst, uint8_t *buf, uint16_t len,
 		req_p->comp_identifier);
 	LOG_HEXDUMP_INF(buf + sizeof(struct pldm_pass_component_table_req), req_p->comp_ver_str_len,
 			"");
+
+	// Platform specific check for request update
+	uint8_t check_result =
+		plat_pldm_request_update_check(req_p->comp_identifier,
+					       buf + sizeof(struct pldm_pass_component_table_req),
+					       req_p->comp_ver_str_len);
+	if (check_result != PLDM_SUCCESS) {
+		resp_p->completion_code = check_result;
+		goto exit;
+	}
 
 	if (current_state != STATE_LEARN_COMP) {
 		LOG_ERR("Firmware update failed because current state %d is not %d", current_state,

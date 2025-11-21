@@ -702,8 +702,6 @@ void pal_warm_reset_prepare()
 
 bool pal_firmware_update_supported(uint16_t comp_identifier, const char *new_version_hex)
 {
-	if (comp_identifier == AG_COMPNT_BIC)
-		return false;
 	if (!new_version_hex) {
 		LOG_ERR("Invalid new_version_hex");
 		return false;
@@ -749,6 +747,9 @@ bool pal_firmware_update_supported(uint16_t comp_identifier, const char *new_ver
 
 	uint16_t remain_val = (uint16_t)strtol(remain_hex, NULL, 16);
 
+	LOG_INF("current_version=%s, remain_val=0x%x, new_version_hex=%s", current_version, remain_val,
+		new_version_hex);
+
 	if (strcmp(current_version, new_version_hex) == 0) {
 		LOG_INF("Version same: comp_identifier=0x%x (%s)", comp_identifier,
 			new_version_hex);
@@ -775,6 +776,11 @@ uint8_t plat_pldm_request_update_check(uint16_t num_of_comp, uint8_t *comp_image
 	// 	LOG_INF("do not need to check for update");
 	// 	return PLDM_SUCCESS;
 	// }
+
+	if (num_of_comp == AG_COMPNT_BIC) {
+		LOG_INF("BIC update is not need to check");
+		return PLDM_SUCCESS;
+	}
 
 	const char *comp_ver_str = (const char *)comp_image_version_str;
 	size_t comp_ver_len = comp_image_version_str_len;

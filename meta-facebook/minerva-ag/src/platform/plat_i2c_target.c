@@ -226,6 +226,11 @@ plat_i2c_bridge_command_response_data
 
 void *allocate_table(void **buffer, size_t buffer_size)
 {
+	if (!buffer || buffer_size == 0) {
+		LOG_ERR("Invalid buffer or size");
+		return NULL;
+	}
+
 	if (*buffer) {
 		free(*buffer);
 		*buffer = NULL;
@@ -251,31 +256,36 @@ uint8_t get_vr_rail_by_control_vol_reg(uint8_t control_vol_reg)
 
 void set_control_voltage_handler(struct k_work *work_item)
 {
-	const plat_control_voltage *sensor_data =
-		CONTAINER_OF(work_item, plat_control_voltage, work);
+	plat_control_voltage *sensor_data = CONTAINER_OF(work_item, plat_control_voltage, work);
 	uint8_t rail = sensor_data->rail;
 	uint16_t millivolt = sensor_data->set_value;
 	LOG_DBG("Setting rail %x to %d mV", rail, millivolt);
 
 	plat_set_vout_command(rail, &millivolt, false, false);
+	free(sensor_data);
 }
 
 void set_power_capping_handler(struct k_work *work_item)
 {
-	const plat_power_capping_set *sensor_data =
-		CONTAINER_OF(work_item, plat_power_capping_set, work);
+	plat_power_capping_set *sensor_data = CONTAINER_OF(work_item, plat_power_capping_set, work);
 
 	uint16_t set_value_HC = sensor_data->set_value_HC;
 	uint16_t set_value_LC = sensor_data->set_value_LC;
 	plat_set_power_capping_command(POWER_CAPPING_INDEX_HC, &set_value_HC, false);
 	plat_set_power_capping_command(POWER_CAPPING_INDEX_LC, &set_value_LC, false);
 	// LOG_DBG("Power capping set HC: %d, LC: %d", set_value_HC, set_value_LC);
+	free(sensor_data);
 }
 
 bool get_fru_info_element(telemetry_info *telemetry_info, char **fru_element,
 			  uint8_t *fru_element_size)
 {
 	CHECK_NULL_ARG_WITH_RETURN(telemetry_info, false);
+	CHECK_NULL_ARG_WITH_RETURN(fru_element, false);
+	CHECK_NULL_ARG_WITH_RETURN(fru_element_size, false);
+
+	*fru_element = NULL;
+	*fru_element_size = 0;
 
 	FRU_INFO *plat_fru_info = get_fru_info();
 	if (!plat_fru_info)
@@ -356,12 +366,15 @@ bool get_fru_info_element(telemetry_info *telemetry_info, char **fru_element,
 
 bool set_bootstrap_element(uint8_t bootstrap_pin, uint8_t user_setting_level)
 {
-	uint8_t change_setting_value;
-	uint8_t drive_index_level = user_setting_level;
+	if (bootstrap_pin >= STRAP_INDEX_MAX) {
+		LOG_ERR("bootstrap_pin[%02x] is out of range", bootstrap_pin);
+		return false;
+	}
+	uint8_t change_setting_value = 0;
 	bootstrap_mapping_register bootstrap_item;
 	if (!set_bootstrap_table_and_user_settings(bootstrap_pin, &change_setting_value,
-						   drive_index_level, false, false)) {
-		LOG_ERR("set bootstrap_table[%02x]:%d failed", bootstrap_pin, drive_index_level);
+						   user_setting_level, false, false)) {
+		LOG_ERR("set bootstrap_table[%02x]:%d failed", bootstrap_pin, user_setting_level);
 		return false;
 	}
 	if (!find_bootstrap_by_rail(bootstrap_pin, &bootstrap_item)) {
@@ -369,7 +382,7 @@ bool set_bootstrap_element(uint8_t bootstrap_pin, uint8_t user_setting_level)
 		return false;
 	}
 	// LOG_DBG("set bootstrap_table[%2x]=%x, cpld_offsets 0x%02x change_setting_value 0x%02x",
-	// 	bootstrap_pin, drive_index_level, bootstrap_item.cpld_offsets,
+	// 	bootstrap_pin, user_setting_level, bootstrap_item.cpld_offsets,
 	// 	change_setting_value);
 	if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, bootstrap_item.cpld_offsets,
 			    &change_setting_value, 1)) {
@@ -395,7 +408,7 @@ void set_bootstrap_element_handler()
 
 void i2c_bridge_command_handler(struct k_work *work_item)
 {
-	const plat_i2c_bridge_command_config *sensor_data_config =
+	plat_i2c_bridge_command_config *sensor_data_config =
 		CONTAINER_OF(work_item, plat_i2c_bridge_command_config, work);
 
 	int response_data_len = sensor_data_config->read_len;
@@ -404,17 +417,17 @@ void i2c_bridge_command_handler(struct k_work *work_item)
 	plat_i2c_bridge_command_status *sensor_data_status =
 		allocate_table((void **)&i2c_bridge_command_status_table[0], table_size_41);
 	if (!sensor_data_status)
-		return;
+		goto exit;
 
 	size_t table_size_42 =
 		sizeof(plat_i2c_bridge_command_response_data) + response_data_len * sizeof(uint8_t);
 	plat_i2c_bridge_command_response_data *sensor_data_response =
 		allocate_table((void **)&i2c_bridge_command_response_data_table[0], table_size_42);
 	if (!sensor_data_response)
-		return;
+		goto exit;
 
 	sensor_data_status->data_status = I2C_BRIDGE_COMMAND_IN_PROCESS;
-	sensor_data_response->data_length = 0x00;
+	sensor_data_response->data_length = 0;
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 5;
@@ -422,32 +435,51 @@ void i2c_bridge_command_handler(struct k_work *work_item)
 	i2c_msg.target_addr = sensor_data_config->addr;
 	i2c_msg.tx_len = sensor_data_config->write_len;
 	i2c_msg.rx_len = sensor_data_config->read_len;
-	memcpy(&i2c_msg.data, sensor_data_config->data, sensor_data_config->write_len);
+
+	if (sensor_data_config->write_len > sizeof(i2c_msg.data)) {
+		LOG_ERR("i2c write_len overflow: %u > %zu", sensor_data_config->write_len,
+			sizeof(i2c_msg.data));
+		sensor_data_status->data_status = I2C_BRIDGE_COMMAND_FAILURE;
+		goto exit;
+	}
+
+	memcpy(i2c_msg.data, sensor_data_config->data, sensor_data_config->write_len);
+
 	if (response_data_len == 0) {
 		if (i2c_master_write(&i2c_msg, retry)) {
 			LOG_ERR("Failed to write reg, bus: %d, addr: 0x%x, tx_len: 0x%x",
 				i2c_msg.bus, i2c_msg.target_addr, i2c_msg.tx_len);
 			sensor_data_status->data_status = I2C_BRIDGE_COMMAND_FAILURE;
-			return;
+		} else {
+			sensor_data_status->data_status = I2C_BRIDGE_COMMAND_SUCCESS;
+			sensor_data_response->data_length = 0;
 		}
-		sensor_data_status->data_status = I2C_BRIDGE_COMMAND_SUCCESS;
-		sensor_data_response->data_length = response_data_len;
-	} else {
-		if (i2c_master_read(&i2c_msg, retry)) {
-			LOG_ERR("Failed to read reg, bus: %d, addr: 0x%x, tx_len: 0x%x",
-				i2c_msg.bus, i2c_msg.target_addr, i2c_msg.tx_len);
-			sensor_data_status->data_status = I2C_BRIDGE_COMMAND_FAILURE;
-			return;
-		}
-		sensor_data_status->data_status = I2C_BRIDGE_COMMAND_SUCCESS;
-		sensor_data_response->data_length = response_data_len;
-		memcpy(sensor_data_response->response_data, i2c_msg.data, response_data_len);
+		goto exit;
 	}
+
+	if (i2c_master_read(&i2c_msg, retry)) {
+		LOG_ERR("Failed to read reg, bus: %d, addr: 0x%x, tx_len: 0x%x", i2c_msg.bus,
+			i2c_msg.target_addr, i2c_msg.tx_len);
+		sensor_data_status->data_status = I2C_BRIDGE_COMMAND_FAILURE;
+		goto exit;
+	}
+
+	sensor_data_status->data_status = I2C_BRIDGE_COMMAND_SUCCESS;
+	sensor_data_response->data_length = response_data_len;
+
+	if (response_data_len <= sizeof(i2c_msg.data))
+		memcpy(sensor_data_response->response_data, i2c_msg.data, response_data_len);
+	else
+		LOG_WRN("response_data_len %d > buffer size %zu, truncated", response_data_len,
+			sizeof(i2c_msg.data));
+
+exit:
+	free(sensor_data_config);
 }
 
 void set_sensor_polling_handler(struct k_work *work_item)
 {
-	const plat_control_sensor_polling *sensor_data =
+	plat_control_sensor_polling *sensor_data =
 		CONTAINER_OF(work_item, plat_control_sensor_polling, work);
 
 	int value = sensor_data->set_value;
@@ -456,6 +488,7 @@ void set_sensor_polling_handler(struct k_work *work_item)
 		return;
 	}
 	set_plat_sensor_polling_enable_flag(value);
+	free(sensor_data);
 }
 
 bool initialize_sensor_data(telemetry_info *telemetry_info, uint8_t *buffer_size)
@@ -468,13 +501,10 @@ bool initialize_sensor_data(telemetry_info *telemetry_info, uint8_t *buffer_size
 
 	// Calculate num_idx
 	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (SENSOR_INIT_PDR_INDEX_MAX * table_index);
-	num_idx = (num_idx > 0) ?
-			  ((num_idx > SENSOR_INIT_PDR_INDEX_MAX) ? SENSOR_INIT_PDR_INDEX_MAX :
-								   num_idx) :
-			  0;
+	num_idx = (num_idx > 0) ? MIN(num_idx, SENSOR_INIT_PDR_INDEX_MAX) : 0;
 
 	// Calculate the memory size
-	size_t table_size = sizeof(plat_sensor_init_data) + num_idx * sizeof(uint8_t);
+	size_t table_size = sizeof(plat_sensor_init_data) + num_idx;
 	plat_sensor_init_data *sensor_data =
 		allocate_table((void **)&sensor_init_data_table[table_index], table_size);
 	if (!sensor_data)
@@ -486,9 +516,9 @@ bool initialize_sensor_data(telemetry_info *telemetry_info, uint8_t *buffer_size
 	sensor_data->reserved_1 = 0xFF;
 	sensor_data->sbi = table_index * SENSOR_INIT_PDR_INDEX_MAX;
 	sensor_data->max_pdr_idx = (table_index == 0x00) ? PLAT_SENSOR_NUM_MAX - 2 : 0xFFFF;
-	memset(sensor_data->sensor_r_len, 4, num_idx * sizeof(uint8_t));
+	memset(sensor_data->sensor_r_len, 4, num_idx);
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -501,10 +531,7 @@ bool initialize_sensor_reading(telemetry_info *telemetry_info, uint8_t *buffer_s
 		return false;
 
 	int num_idx = (PLAT_SENSOR_NUM_MAX - 1) - (SENSOR_READING_PDR_INDEX_MAX * table_index);
-	num_idx = (num_idx > 0) ?
-			  ((num_idx > SENSOR_READING_PDR_INDEX_MAX) ? SENSOR_READING_PDR_INDEX_MAX :
-								      num_idx) :
-			  0;
+	num_idx = (num_idx > 0) ? MIN(num_idx, SENSOR_READING_PDR_INDEX_MAX) : 0;
 
 	size_t table_size = sizeof(plat_sensor_reading) + num_idx * sizeof(sensor_entry);
 	plat_sensor_reading *sensor_data =
@@ -516,13 +543,14 @@ bool initialize_sensor_reading(telemetry_info *telemetry_info, uint8_t *buffer_s
 	sensor_data->register_layout_version = REGISTER_LAYOUT_VERSION;
 	sensor_data->sensor_base_index = table_index * SENSOR_READING_PDR_INDEX_MAX;
 	sensor_data->max_sbi_off = (num_idx > 0) ? num_idx - 1 : 0;
+
 	for (int i = 0; i < num_idx; i++) {
 		sensor_data->sensor_entries[i].sensor_index_offset =
 			i; // sensor_index_offset range: 0~49
 		sensor_data->sensor_entries[i].sensor_value = 0x00000000;
 	}
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -555,7 +583,7 @@ bool initialize_inventory_ids(telemetry_info *telemetry_info, uint8_t *buffer_si
 	sensor_data->bic_fw_version = bic_version;
 	sensor_data->cpld_fw_version = cpld_version;
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -591,7 +619,7 @@ bool initialize_strap_capability(telemetry_info *telemetry_info, uint8_t *buffer
 		sensor_data->strap_set_format[i].strap_set_value = drive_level;
 	}
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -607,6 +635,7 @@ bool initialize_fru_board_data(telemetry_info *telemetry_info, uint8_t *buffer_s
 	uint8_t fru_length = 0;
 	if (!get_fru_info_element(telemetry_info, &fru_string, &fru_length)) {
 		LOG_ERR("Failed to retrieve FRU Element");
+		return false;
 	}
 
 	size_t table_size = sizeof(plat_fru_data) + fru_length;
@@ -618,7 +647,7 @@ bool initialize_fru_board_data(telemetry_info *telemetry_info, uint8_t *buffer_s
 	sensor_data->data_length = fru_length;
 	memcpy(sensor_data->fru_data, fru_string, fru_length);
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -634,6 +663,7 @@ bool initialize_fru_product_data(telemetry_info *telemetry_info, uint8_t *buffer
 	uint8_t fru_length = 0;
 	if (!get_fru_info_element(telemetry_info, &fru_string, &fru_length)) {
 		LOG_ERR("Failed to retrieve FRU Element");
+		return false;
 	}
 
 	size_t table_size = sizeof(plat_fru_data) + fru_length;
@@ -645,7 +675,7 @@ bool initialize_fru_product_data(telemetry_info *telemetry_info, uint8_t *buffer
 	sensor_data->data_length = fru_length;
 	memcpy(sensor_data->fru_data, fru_string, fru_length);
 
-	*buffer_size = (uint8_t)table_size;
+	*buffer_size = (table_size > 0xFF) ? 0xFF : (uint8_t)table_size;
 	return true;
 }
 
@@ -696,24 +726,19 @@ void update_strap_capability_table()
 
 void update_plat_power_capping_table()
 {
-	for (int i = 0; i < ARRAY_SIZE(plat_power_capping_table); i++) {
+	for (size_t i = 0; i < ARRAY_SIZE(plat_power_capping_table); i++) {
 		int sensor_number = plat_power_capping_table[i].sensor_id;
 		uint8_t status = SENSOR_UNAVAILABLE;
 		int reading = 0; // unit: mW
 		uint8_t sensor_operational_state = PLDM_SENSOR_STATUSUNKOWN;
 		status = pldm_sensor_get_reading_from_cache(sensor_number, &reading,
 							    &sensor_operational_state);
-		uint16_t transfer_reading;
+		uint16_t transfer_reading = 0xFFFF;
 
 		if (status == SENSOR_READ_SUCCESS) {
-			float watt = reading / 1000.0f;
-			if (watt < 0) {
-				transfer_reading = 0xFFFF;
-			} else {
+			float watt = (float)reading / 1000.0f;
+			if (watt >= 0.0f)
 				transfer_reading = (uint16_t)watt;
-			}
-		} else {
-			transfer_reading = 0xFFFF;
 		}
 		plat_power_capping_table[i].sensor_value = transfer_reading;
 	}

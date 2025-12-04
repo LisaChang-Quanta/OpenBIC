@@ -134,7 +134,15 @@ bool plat_i2c_read(uint8_t bus, uint8_t addr, uint8_t offset, uint8_t *data, uin
 {
 	CHECK_NULL_ARG_WITH_RETURN(data, false);
 
-	memset(data, 0, len);
+	if (len == 0) {
+		LOG_ERR("Invalid I2C read length = 0");
+		return false;
+	}
+
+	if (len > I2C_BUFF_SIZE) {
+		LOG_ERR("I2C read length %d exceeds max buffer size %d", len, I2C_BUFF_SIZE);
+		return false;
+	}
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 5;
@@ -156,6 +164,12 @@ bool plat_i2c_read(uint8_t bus, uint8_t addr, uint8_t offset, uint8_t *data, uin
 bool plat_i2c_write(uint8_t bus, uint8_t addr, uint8_t offset, uint8_t *data, uint8_t len)
 {
 	CHECK_NULL_ARG_WITH_RETURN(data, false);
+
+	if ((len + 1) > I2C_BUFF_SIZE) {
+		LOG_ERR("I2C write length %d (data) + 1 (offset) exceeds max buffer size %d", len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
 
 	I2C_MSG i2c_msg = { 0 };
 	uint8_t retry = 5;
@@ -426,7 +440,7 @@ bool plat_power_control(bool is_power_on)
 		} else {
 			power_and_reset_button_reg &= ~BIT(0);
 		}
-		memset(data, power_and_reset_button_reg, sizeof(data));
+		data[0] = power_and_reset_button_reg;
 		if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, 0x00, data, 1)) {
 			LOG_ERR("Failed to write cpld 0x%02X data 0x%02X", 0x00, data[0]);
 			return false;
@@ -435,7 +449,7 @@ bool plat_power_control(bool is_power_on)
 	} else {
 		if (is_power_on) {
 			power_and_reset_button_reg &= ~BIT(1);
-			memset(data, power_and_reset_button_reg, sizeof(data));
+			data[0] = power_and_reset_button_reg;
 			if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, 0x00, data, 1)) {
 				LOG_ERR("Failed to write cpld 0x%02X data 0x%02X", 0x00, data[0]);
 				return false;
@@ -443,7 +457,7 @@ bool plat_power_control(bool is_power_on)
 			LOG_DBG("cpld write 0x%02X data 0x%02X", 0x00, data[0]);
 			k_msleep(2000);
 			power_and_reset_button_reg |= BIT(1);
-			memset(data, power_and_reset_button_reg, sizeof(data));
+			data[0] = power_and_reset_button_reg;
 			if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, 0x00, data, 1)) {
 				LOG_ERR("Failed to write cpld 0x%02X data 0x%02X", 0x00, data[0]);
 				return false;
@@ -451,7 +465,7 @@ bool plat_power_control(bool is_power_on)
 			LOG_DBG("cpld write 0x%02X data 0x%02X", 0x00, data[0]);
 		} else {
 			power_and_reset_button_reg &= ~BIT(1);
-			memset(data, power_and_reset_button_reg, sizeof(data));
+			data[0] = power_and_reset_button_reg;
 			if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, 0x00, data, 1)) {
 				LOG_ERR("Failed to write cpld 0x%02X data 0x%02X", 0x00, data[0]);
 				return false;
@@ -459,7 +473,7 @@ bool plat_power_control(bool is_power_on)
 			LOG_DBG("cpld write 0x%02X data 0x%02X", 0x00, data[0]);
 			k_msleep(5000);
 			power_and_reset_button_reg |= BIT(1);
-			memset(data, power_and_reset_button_reg, sizeof(data));
+			data[0] = power_and_reset_button_reg;
 			if (!plat_i2c_write(I2C_BUS5, AEGIS_CPLD_ADDR, 0x00, data, 1)) {
 				LOG_ERR("Failed to write cpld 0x%02X data 0x%02X", 0x00, data[0]);
 				return false;

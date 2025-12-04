@@ -637,17 +637,28 @@ bool post_vr_read(sensor_cfg *cfg, void *args, int *const reading)
 		if (cfg->num == VR_ASIC_P0V85_PVDD_PWR_W) {
 			update_plat_power_capping_table();
 			ath_vdd_polling_counter++;
-			power_capping_power_history[power_capping_power_history_index] =
-				decoded_reading;
-			// LOG_INF("power[%d]:%d", power_capping_power_history_index,
-			// 	power_capping_power_history[power_capping_power_history_index]);
-			power_capping_power_history_index =
-				(power_capping_power_history_index + 1) %
-				power_capping_average_time_counter_max;
-			if (power_capping_power_history_count <
-			    power_capping_average_time_counter_max) {
-				power_capping_power_history_count++;
+
+			if (power_capping_average_time_counter_max > 0 &&
+			    power_capping_average_time_counter_max <= POWER_CAPPING_HISTORY_SIZE) {
+				if (power_capping_power_history_index >=
+				    POWER_CAPPING_HISTORY_SIZE) {
+					LOG_ERR("power_capping_power_history_index overflow: %u",
+						power_capping_power_history_index);
+					power_capping_power_history_index = 0;
+				}
+				power_capping_power_history[power_capping_power_history_index] =
+					decoded_reading;
+				// LOG_INF("power[%d]:%d", power_capping_power_history_index,
+				// 	power_capping_power_history[power_capping_power_history_index]);
+				power_capping_power_history_index =
+					(power_capping_power_history_index + 1) %
+					power_capping_average_time_counter_max;
+				if (power_capping_power_history_count <
+				    power_capping_average_time_counter_max) {
+					power_capping_power_history_count++;
+				}
 			}
+
 			if (ath_vdd_polling_counter >= comparator_counter_max) {
 				uint32_t tmp_power_capping_average_power = 0;
 				if (!get_power_capping_average_power(
@@ -973,6 +984,12 @@ bool vr_vout_user_settings_get(void *user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	uint8_t data_len = sizeof(struct vr_vout_user_settings);
+	if (data_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_len, I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* read the user_settings from eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
@@ -981,14 +998,14 @@ bool vr_vout_user_settings_get(void *user_settings)
 	msg.tx_len = 2;
 	msg.data[0] = VR_VOUT_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = VR_VOUT_USER_SETTINGS_OFFSET & 0xff;
-	msg.rx_len = sizeof(struct vr_vout_user_settings);
+	msg.rx_len = data_len;
 
 	if (i2c_master_read(&msg, retry)) {
 		LOG_ERR("Failed to read eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x", msg.bus,
 			msg.target_addr, msg.data[0], msg.data[1]);
 		return false;
 	}
-	memcpy(user_settings, msg.data, sizeof(struct vr_vout_user_settings));
+	memcpy(user_settings, msg.data, data_len);
 
 	return true;
 }
@@ -997,16 +1014,24 @@ bool vr_vout_user_settings_set(void *user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	uint8_t data_len = sizeof(struct vr_vout_user_settings);
+	uint8_t tx_len = data_len + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = sizeof(struct vr_vout_user_settings) + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = VR_VOUT_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = VR_VOUT_USER_SETTINGS_OFFSET & 0xff;
 
-	memcpy(&msg.data[2], user_settings, sizeof(struct vr_vout_user_settings));
+	memcpy(&msg.data[2], user_settings, data_len);
 	LOG_DBG("vout write eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x, tx_len: %d", msg.bus,
 		msg.target_addr, msg.data[0], msg.data[1], msg.tx_len);
 
@@ -1024,11 +1049,18 @@ bool set_user_settings_soc_pcie_perst_to_eeprom(void *user_settings, uint8_t dat
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	uint8_t tx_len = data_length + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = data_length + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = SOC_PCIE_PERST_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = SOC_PCIE_PERST_USER_SETTINGS_OFFSET & 0xff;
 
@@ -1049,6 +1081,12 @@ bool set_user_settings_soc_pcie_perst_to_eeprom(void *user_settings, uint8_t dat
 bool get_user_settings_soc_pcie_perst_from_eeprom(void *user_settings, uint8_t data_length)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
+
+	if (data_length > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_length,
+			I2C_BUFF_SIZE);
+		return false;
+	}
 
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
@@ -1073,11 +1111,18 @@ int set_user_settings_alert_level_to_eeprom(void *user_settings, uint8_t data_le
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, -1);
 
+	uint8_t tx_len = data_length + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return -1;
+	}
+
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = data_length + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = ALERT_LEVEL_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = ALERT_LEVEL_USER_SETTINGS_OFFSET & 0xff;
 
@@ -1095,6 +1140,12 @@ int set_user_settings_alert_level_to_eeprom(void *user_settings, uint8_t data_le
 int get_user_settings_alert_level_from_eeprom(void *user_settings, uint8_t data_length)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, -1);
+
+	if (data_length > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_length,
+			I2C_BUFF_SIZE);
+		return -1;
+	}
 
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
@@ -1256,7 +1307,13 @@ bool temp_threshold_user_settings_get(void *temp_threshold_user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(temp_threshold_user_settings, false);
 
-	/* TODO: read the temp_threshold_user_settings from eeprom */
+	uint8_t data_len = sizeof(struct temp_threshold_user_settings_struct);
+	if (data_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_len, I2C_BUFF_SIZE);
+		return false;
+	}
+
+	/* read the temp_threshold_user_settings from eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
@@ -1264,15 +1321,14 @@ bool temp_threshold_user_settings_get(void *temp_threshold_user_settings)
 	msg.tx_len = 2;
 	msg.data[0] = TEMP_THRESHOLD_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = TEMP_THRESHOLD_USER_SETTINGS_OFFSET & 0xff;
-	msg.rx_len = sizeof(struct temp_threshold_user_settings_struct);
+	msg.rx_len = data_len;
 
 	if (i2c_master_read(&msg, retry)) {
 		LOG_ERR("Failed to read eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x", msg.bus,
 			msg.target_addr, msg.data[0], msg.data[1]);
 		return false;
 	}
-	memcpy(temp_threshold_user_settings, msg.data,
-	       sizeof(struct temp_threshold_user_settings_struct));
+	memcpy(temp_threshold_user_settings, msg.data, data_len);
 
 	return true;
 }
@@ -1281,17 +1337,24 @@ bool temp_threshold_user_settings_set(void *temp_threshold_user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(temp_threshold_user_settings, false);
 
-	/* TODO: write the temp_threshold_user_settings to eeprom */
+	uint8_t data_len = sizeof(struct temp_threshold_user_settings_struct);
+	uint8_t tx_len = data_len + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
+	/* write the temp_threshold_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = sizeof(struct temp_threshold_user_settings_struct) + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = TEMP_THRESHOLD_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = TEMP_THRESHOLD_USER_SETTINGS_OFFSET & 0xff;
 
-	memcpy(&msg.data[2], temp_threshold_user_settings,
-	       sizeof(struct temp_threshold_user_settings_struct));
+	memcpy(&msg.data[2], temp_threshold_user_settings, data_len);
 	LOG_DBG("temp write eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x, tx_len: %d", msg.bus,
 		msg.target_addr, msg.data[0], msg.data[1], msg.tx_len);
 
@@ -1301,6 +1364,7 @@ bool temp_threshold_user_settings_set(void *temp_threshold_user_settings)
 		return false;
 	}
 	k_msleep(EEPROM_MAX_WRITE_TIME);
+
 	return true;
 }
 
@@ -1348,6 +1412,12 @@ bool bootstrap_user_settings_get(void *bootstrap_user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(bootstrap_user_settings, false);
 
+	uint8_t data_len = sizeof(struct bootstrap_user_settings_struct);
+	if (data_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_len, I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* read the bootstrap_user_settings from eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
@@ -1356,14 +1426,14 @@ bool bootstrap_user_settings_get(void *bootstrap_user_settings)
 	msg.tx_len = 2;
 	msg.data[0] = BOOTSTRAP_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = BOOTSTRAP_USER_SETTINGS_OFFSET & 0xff;
-	msg.rx_len = sizeof(struct bootstrap_user_settings_struct);
+	msg.rx_len = data_len;
 
 	if (i2c_master_read(&msg, retry)) {
 		LOG_ERR("Failed to read eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x", msg.bus,
 			msg.target_addr, msg.data[0], msg.data[1]);
 		return false;
 	}
-	memcpy(bootstrap_user_settings, msg.data, sizeof(struct bootstrap_user_settings_struct));
+	memcpy(bootstrap_user_settings, msg.data, data_len);
 
 	return true;
 }
@@ -1372,17 +1442,24 @@ bool bootstrap_user_settings_set(void *bootstrap_user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(bootstrap_user_settings, false);
 
+	uint8_t data_len = sizeof(struct bootstrap_user_settings_struct);
+	uint8_t tx_len = data_len + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the bootstrap_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = sizeof(struct bootstrap_user_settings_struct) + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = BOOTSTRAP_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = BOOTSTRAP_USER_SETTINGS_OFFSET & 0xff;
 
-	memcpy(&msg.data[2], bootstrap_user_settings,
-	       sizeof(struct bootstrap_user_settings_struct));
+	memcpy(&msg.data[2], bootstrap_user_settings, data_len);
 	LOG_DBG("bootstrap write eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x, tx_len: %d", msg.bus,
 		msg.target_addr, msg.data[0], msg.data[1], msg.tx_len);
 
@@ -1402,6 +1479,12 @@ thermaltrip_user_settings_struct thermaltrip_user_settings = { 0xFF };
 bool get_user_settings_thermaltrip_from_eeprom(void *user_settings, uint8_t data_length)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
+
+	if (data_length > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_length,
+			I2C_BUFF_SIZE);
+		return false;
+	}
 
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
@@ -1428,12 +1511,19 @@ bool set_user_settings_thermaltrip_to_eeprom(void *thermaltrip_user_settings, ui
 {
 	CHECK_NULL_ARG_WITH_RETURN(thermaltrip_user_settings, false);
 
+	uint8_t tx_len = data_length + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the thermaltrip_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = data_length + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = THERMALTRIP_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = THERMALTRIP_USER_SETTINGS_OFFSET & 0xff;
 
@@ -1487,6 +1577,12 @@ bool get_user_settings_ath_gpio_from_eeprom(void *user_settings, uint8_t data_le
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	if (data_length > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_length,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
@@ -1512,12 +1608,19 @@ bool set_user_settings_ath_gpio_to_eeprom(void *ath_gpio_user_settings, uint8_t 
 {
 	CHECK_NULL_ARG_WITH_RETURN(ath_gpio_user_settings, false);
 
+	uint8_t tx_len = data_length + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the ath_gpio_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = data_length + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = ATH_GPIO_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = ATH_GPIO_USER_SETTINGS_OFFSET & 0xff;
 
@@ -1571,6 +1674,12 @@ bool get_user_settings_throttle_from_eeprom(void *user_settings, uint8_t data_le
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	if (data_length > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_length,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
@@ -1596,12 +1705,19 @@ bool set_user_settings_throttle_to_eeprom(void *throttle_user_settings, uint8_t 
 {
 	CHECK_NULL_ARG_WITH_RETURN(throttle_user_settings, false);
 
+	uint8_t tx_len = data_length + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the throttle_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = data_length + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = THROTTLE_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = THROTTLE_USER_SETTINGS_OFFSET & 0xff;
 
@@ -2678,13 +2794,50 @@ void update_comparator_counter_max(void)
 
 void update_power_capping_average_time_max(void)
 {
-	uint16_t power_capping_average_time_ms =
-		power_capping_rail_table[POWER_CAPPING_INDEX_AVERAGE].change_setting_value;
+	uint16_t power_capping_average_time_ms;
+	uint16_t new_power_capping_average_time_counter_max;
+	bool found = false;
+	power_capping_mapping_sensor *entry = NULL;
 
-	power_capping_average_time_counter_max =
+	if (POWER_CAPPING_INDEX_AVERAGE >= POWER_CAPPING_INDEX_MAX) {
+		LOG_ERR("POWER_CAPPING_INDEX_AVERAGE invalid");
+		return;
+	}
+
+	for (size_t i = 0; i < ARRAY_SIZE(power_capping_rail_table); i++) {
+		if (power_capping_rail_table[i].index == POWER_CAPPING_INDEX_AVERAGE) {
+			entry = &power_capping_rail_table[i];
+			found = true;
+			break;
+		}
+	}
+
+	if (!found) {
+		LOG_ERR("POWER_CAPPING_INDEX_AVERAGE not found in rail table");
+		return;
+	}
+
+	if (POWER_CAPPING_INDEX_AVERAGE >= ARRAY_SIZE(power_capping_rail_table)) {
+		LOG_ERR("POWER_CAPPING_INDEX_AVERAGE out of bounds");
+		return;
+	}
+
+	power_capping_average_time_ms = entry->change_setting_value;
+
+	if (ATH_VDD_INTERVAL_MS == 0) {
+		LOG_ERR("ATH_VDD_INTERVAL_MS is zero");
+		return;
+	}
+
+	new_power_capping_average_time_counter_max =
 		power_capping_average_time_ms / ATH_VDD_INTERVAL_MS;
 
-	if (power_capping_power_history_count >= power_capping_average_time_counter_max) {
+	if (new_power_capping_average_time_counter_max > POWER_CAPPING_HISTORY_SIZE)
+		new_power_capping_average_time_counter_max = POWER_CAPPING_HISTORY_SIZE;
+
+	power_capping_average_time_counter_max = new_power_capping_average_time_counter_max;
+
+	if (power_capping_power_history_count >= new_power_capping_average_time_counter_max) {
 		power_capping_power_history_count = 0;
 		power_capping_power_history_index = 0;
 	}
@@ -2694,6 +2847,12 @@ bool get_user_settings_power_capping_from_eeprom(void *user_settings)
 {
 	CHECK_NULL_ARG_WITH_RETURN(user_settings, false);
 
+	uint8_t data_len = sizeof(struct power_capping_user_settings_struct);
+	if (data_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Settings size (%d) exceeds I2C buffer size (%d)", data_len, I2C_BUFF_SIZE);
+		return false;
+	}
+
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
@@ -2701,17 +2860,16 @@ bool get_user_settings_power_capping_from_eeprom(void *user_settings)
 	msg.tx_len = 2;
 	msg.data[0] = POWER_CAPPING_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = POWER_CAPPING_USER_SETTINGS_OFFSET & 0xff;
-	msg.rx_len = sizeof(struct power_capping_user_settings_struct);
+	msg.rx_len = data_len;
 
 	if (i2c_master_read(&msg, retry)) {
 		LOG_ERR("Failed to read eeprom, bus: %d, addr: 0x%x, reg: 0x%x%x", msg.bus,
 			msg.target_addr, msg.data[0], msg.data[1]);
 		return false;
 	}
-	memcpy(user_settings, msg.data, sizeof(struct power_capping_user_settings_struct));
+	memcpy(user_settings, msg.data, data_len);
 
-	LOG_HEXDUMP_DBG(msg.data, sizeof(struct power_capping_user_settings_struct),
-			"EEPROM data read power capping");
+	LOG_HEXDUMP_DBG(msg.data, data_len, "EEPROM data read power capping");
 
 	return true;
 }
@@ -2747,17 +2905,24 @@ bool set_user_settings_power_capping_to_eeprom(void *power_capping_user_settings
 {
 	CHECK_NULL_ARG_WITH_RETURN(power_capping_user_settings, false);
 
+	uint8_t data_len = sizeof(struct power_capping_user_settings_struct);
+	uint8_t tx_len = data_len + 2;
+	if (tx_len > I2C_BUFF_SIZE) {
+		LOG_ERR("Total transfer size (%d) exceeds I2C buffer size (%d)", tx_len,
+			I2C_BUFF_SIZE);
+		return false;
+	}
+
 	/* write the power_capping_user_settings to eeprom */
 	I2C_MSG msg = { 0 };
 	uint8_t retry = 5;
 	msg.bus = I2C_BUS12;
 	msg.target_addr = 0xA0 >> 1;
-	msg.tx_len = sizeof(struct power_capping_user_settings_struct) + 2;
+	msg.tx_len = tx_len;
 	msg.data[0] = POWER_CAPPING_USER_SETTINGS_OFFSET >> 8;
 	msg.data[1] = POWER_CAPPING_USER_SETTINGS_OFFSET & 0xff;
 
-	memcpy(&msg.data[2], power_capping_user_settings,
-	       sizeof(struct power_capping_user_settings_struct));
+	memcpy(&msg.data[2], power_capping_user_settings, data_len);
 	// LOG_DBG("power capping user settings write into eeprom, bus: %d, addr: 0x%x, reg: 0x%x 0x%x, tx_len: %d",
 	// 	msg.bus, msg.target_addr, msg.data[0], msg.data[1], msg.tx_len);
 
@@ -2962,35 +3127,41 @@ bool get_power_capping_average_power(uint32_t *milliwatt)
 {
 	CHECK_NULL_ARG_WITH_RETURN(milliwatt, false);
 
-	int sum = 0;
-	for (int i = 0; i < power_capping_power_history_count; i++) {
+	if (power_capping_power_history_count == 0) {
+		LOG_ERR("power_capping_power_history_count is zero");
+		*milliwatt = 0;
+		return false;
+	}
+
+	uint32_t sum = 0;
+	for (uint8_t i = 0; i < power_capping_power_history_count; i++) {
 		sum += power_capping_power_history[i];
 	}
 
-	float avg_sensor_value = sum / (float)power_capping_power_history_count;
-	if (avg_sensor_value < 0) {
+	float avg_sensor_value = (float)sum / (float)power_capping_power_history_count;
+	if (avg_sensor_value < 0.0f) {
 		LOG_ERR("avg_sensor_value is negative: %f", avg_sensor_value);
 		*milliwatt = 0;
 		return false;
 	}
 
 	uint8_t sensor_id = VR_ASIC_P0V85_PVDD_PWR_W;
-	float resolution = 0, offset = 0;
+	float resolution = 0.0f, offset = 0.0f;
 	int cache_reading = 0;
 	int8_t unit_modifier = 0;
 	uint8_t sensor_operational_state = PLDM_SENSOR_STATUSUNKOWN;
 	pldm_sensor_get_info_via_sensor_id(sensor_id, &resolution, &offset, &unit_modifier,
 					   &cache_reading, &sensor_operational_state);
-	if (resolution == 0) {
-		*milliwatt = 0;
+	if (resolution == 0.0f) {
 		LOG_ERR("resolution is 0");
+		*milliwatt = 0;
 		return false;
 	}
 
 	float real_power = (avg_sensor_value * resolution + offset) / power(10, -unit_modifier);
 
 	int16_t integer_part = (int16_t)real_power;
-	int16_t fraction_part = (int16_t)((real_power - integer_part) * 1000.0);
+	int16_t fraction_part = (int16_t)((real_power - (float)integer_part) * 1000.0f);
 
 	if (integer_part < 0 && fraction_part > 0) {
 		fraction_part = -fraction_part;

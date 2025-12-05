@@ -310,7 +310,7 @@ uint8_t plat_pldm_query_device_identifiers(const uint8_t *buf, uint16_t len, uin
 		(uint8_t *)resp + sizeof(struct pldm_query_device_identifiers_resp);
 
 	memcpy(end_of_id_ptr, tlv_ptr, total_size_of_iana_descriptor);
-	free(tlv_ptr);
+	SAFE_FREE(tlv_ptr);
 
 	tlv_ptr = malloc(total_size_of_device_id_descriptor);
 	if (tlv_ptr == NULL) {
@@ -324,7 +324,7 @@ uint8_t plat_pldm_query_device_identifiers(const uint8_t *buf, uint16_t len, uin
 
 	end_of_id_ptr += total_size_of_iana_descriptor;
 	memcpy(end_of_id_ptr, tlv_ptr, total_size_of_device_id_descriptor);
-	free(tlv_ptr);
+	SAFE_FREE(tlv_ptr);
 
 	resp_p->device_identifiers_len =
 		total_size_of_iana_descriptor + total_size_of_device_id_descriptor;

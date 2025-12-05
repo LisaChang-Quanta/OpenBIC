@@ -232,7 +232,7 @@ void *allocate_table(void **buffer, size_t buffer_size)
 	}
 
 	if (*buffer) {
-		free(*buffer);
+		SAFE_FREE(*buffer);
 		*buffer = NULL;
 	}
 
@@ -262,7 +262,7 @@ void set_control_voltage_handler(struct k_work *work_item)
 	LOG_DBG("Setting rail %x to %d mV", rail, millivolt);
 
 	plat_set_vout_command(rail, &millivolt, false, false);
-	free(sensor_data);
+	SAFE_FREE(sensor_data);
 }
 
 void set_power_capping_handler(struct k_work *work_item)
@@ -274,7 +274,7 @@ void set_power_capping_handler(struct k_work *work_item)
 	plat_set_power_capping_command(POWER_CAPPING_INDEX_HC, &set_value_HC, false);
 	plat_set_power_capping_command(POWER_CAPPING_INDEX_LC, &set_value_LC, false);
 	// LOG_DBG("Power capping set HC: %d, LC: %d", set_value_HC, set_value_LC);
-	free(sensor_data);
+	SAFE_FREE(sensor_data);
 }
 
 bool get_fru_info_element(telemetry_info *telemetry_info, char **fru_element,
@@ -474,7 +474,7 @@ void i2c_bridge_command_handler(struct k_work *work_item)
 			sizeof(i2c_msg.data));
 
 exit:
-	free(sensor_data_config);
+	SAFE_FREE(sensor_data_config);
 }
 
 void set_sensor_polling_handler(struct k_work *work_item)
@@ -488,7 +488,7 @@ void set_sensor_polling_handler(struct k_work *work_item)
 		return;
 	}
 	set_plat_sensor_polling_enable_flag(value);
-	free(sensor_data);
+	SAFE_FREE(sensor_data);
 }
 
 bool initialize_sensor_data(telemetry_info *telemetry_info, uint8_t *buffer_size)

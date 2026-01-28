@@ -148,7 +148,8 @@ void plat_clear_log()
 		k_msleep(EEPROM_MAX_WRITE_TIME); // the eeprom max write time is 10 ms
 	}
 	log_num = 0;
-	next_index = 0;
+	next_index = 1;
+	next_log_position = 1;
 }
 
 bool plat_dump_cpld(uint8_t offset, uint8_t length, uint8_t *data)
@@ -378,50 +379,57 @@ void error_log_event(uint16_t error_code, bool log_status)
 		return;
 	}
 
-	uint16_t fru_count = next_log_position;
+	uint16_t fru_idx = next_log_position - 1;
+
+	if (fru_idx >= LOG_MAX_NUM) {
+		LOG_ERR("Invalid next_log_position: %d, resetting to 1", next_log_position);
+		fru_idx = 0;
+		next_log_position = 1;
+	}
+
+	LOG_INF("Logging to index: %d (position: %d)", fru_idx, next_log_position);
 
 	// Update the log entry's index
-	err_log_data[fru_count].index = next_index;
+	err_log_data[fru_idx].index = next_index;
 	next_index = (next_index % LOG_MAX_INDEX) + 1;
 
 	// Update log error code and timestamp
-	err_log_data[fru_count].err_code = error_code;
+	err_log_data[fru_idx].err_code = error_code;
 	struct tm tm_now;
 	rtc_get_tm(&tm_now);
 
-	err_log_data[fru_count].sys_datetime.year = tm_now.tm_year + 1900;
-	err_log_data[fru_count].sys_datetime.month = tm_now.tm_mon + 1;
-	err_log_data[fru_count].sys_datetime.day = tm_now.tm_mday;
-	err_log_data[fru_count].sys_datetime.hour = tm_now.tm_hour;
-	err_log_data[fru_count].sys_datetime.min = tm_now.tm_min;
-	err_log_data[fru_count].sys_datetime.sec = tm_now.tm_sec;
+	err_log_data[fru_idx].sys_datetime.year = tm_now.tm_year + 1900;
+	err_log_data[fru_idx].sys_datetime.month = tm_now.tm_mon + 1;
+	err_log_data[fru_idx].sys_datetime.day = tm_now.tm_mday;
+	err_log_data[fru_idx].sys_datetime.hour = tm_now.tm_hour;
+	err_log_data[fru_idx].sys_datetime.min = tm_now.tm_min;
+	err_log_data[fru_idx].sys_datetime.sec = tm_now.tm_sec;
 
-	if (!get_error_data(error_code, err_log_data[fru_count].error_data)) {
+	if (!get_error_data(error_code, err_log_data[fru_idx].error_data)) {
 		// Clear error data if no valid data is found
-		memset(err_log_data[fru_count].error_data, 0,
-		       sizeof(err_log_data[fru_count].error_data));
+		memset(err_log_data[fru_idx].error_data, 0,
+		       sizeof(err_log_data[fru_idx].error_data));
 	}
 
 	if (!plat_dump_cpld(AEGIS_CPLD_REGISTER_1ST_PART_START_OFFSET,
-			    AEGIS_CPLD_REGISTER_1ST_PART_NUM, err_log_data[fru_count].cpld_dump)) {
+			    AEGIS_CPLD_REGISTER_1ST_PART_NUM, err_log_data[fru_idx].cpld_dump)) {
 		LOG_ERR("Failed to dump 1st part CPLD data");
 	}
 
 	if (!plat_dump_cpld(AEGIS_CPLD_REGISTER_2ND_PART_START_OFFSET,
 			    AEGIS_CPLD_REGISTER_2ND_PART_NUM,
-			    err_log_data[fru_count].cpld_dump + AEGIS_CPLD_REGISTER_1ST_PART_NUM)) {
+			    err_log_data[fru_idx].cpld_dump + AEGIS_CPLD_REGISTER_1ST_PART_NUM)) {
 		LOG_ERR("Failed to dump 2nd part CPLD data");
 	}
 
 	//dump err_log_data for debug
-	LOG_HEXDUMP_DBG(&err_log_data[fru_count], sizeof(plat_err_log_mapping), "err_log_data");
+	LOG_HEXDUMP_DBG(&err_log_data[fru_idx], sizeof(plat_err_log_mapping), "err_log_data");
 
 	// 1 base fru_count, write_address is 0 base
-	uint16_t write_address =
-		AEGIS_FRU_LOG_START + (fru_count - 1) * sizeof(plat_err_log_mapping);
+	uint16_t write_address = AEGIS_FRU_LOG_START + fru_idx * sizeof(plat_err_log_mapping);
 
 	// Write log to EEPROM with error handling
-	if (!plat_eeprom_write(write_address, (uint8_t *)&err_log_data[fru_count],
+	if (!plat_eeprom_write(write_address, (uint8_t *)&err_log_data[fru_idx],
 			       sizeof(plat_err_log_mapping))) {
 		LOG_ERR("Write Log failed with Error code: %02x", error_code);
 	} else {
@@ -429,11 +437,10 @@ void error_log_event(uint16_t error_code, bool log_status)
 	}
 
 	// Update the next log position
-	next_log_position = (fru_count % LOG_MAX_NUM) + 1;
-	log_num++;
+	next_log_position = (next_log_position % LOG_MAX_NUM) + 1;
 
-	if (log_num > LOG_MAX_NUM) {
-		log_num = LOG_MAX_NUM;
+	if (log_num < LOG_MAX_NUM) {
+		log_num++;
 	}
 }
 
@@ -459,9 +466,9 @@ uint8_t plat_log_get_num(void)
 void find_last_log_position()
 {
 	uint16_t max_index = 0; // Highest valid index found
-	uint16_t last_position = 0; // Position of the highest valid index
-	bool all_empty = true; // Flag to detect if all entries are empty
+	int last_idx = -1;
 	plat_err_log_mapping log_entry;
+	log_num = 0;
 
 	for (uint16_t i = 0; i < LOG_MAX_NUM; i++) {
 		uint16_t eeprom_address = AEGIS_FRU_LOG_START + i * sizeof(plat_err_log_mapping);
@@ -475,26 +482,24 @@ void find_last_log_position()
 
 		// Check if the entry is valid
 		if (log_entry.index != 0xFFFF && log_entry.index <= LOG_MAX_INDEX) {
-			all_empty = false; // At least one entry is valid
 			log_num++;
 			if (log_entry.index > max_index) {
 				max_index = log_entry.index; // Update max index
-				last_position = i + 1; // Update last position, 1 base
+				last_idx = i;
 			}
 		}
 	}
 
 	// All entries are empty
-	if (all_empty) {
+	if (last_idx == -1) {
 		LOG_INF("All entries are empty. Initializing next_log_position and next_index to 1.");
 		next_log_position = 1;
 		next_index = 1;
-		return;
+	} else {
+		next_log_position = ((last_idx + 1) % LOG_MAX_NUM) + 1;
+		next_index = (max_index % LOG_MAX_INDEX) + 1;
+		LOG_INF("Next log position: %d, next index: %d", next_log_position, next_index);
 	}
-
-	next_log_position = (last_position % LOG_MAX_NUM) + 1;
-	next_index = (max_index % LOG_MAX_INDEX) + 1;
-	LOG_INF("Next log position: %d, next index: %d", next_log_position, next_index);
 }
 
 // Load logs from EEPROM into memory during initialization

@@ -26,11 +26,197 @@
 #include "plat_mctp.h"
 #include "shell_plat_power_sequence.h"
 #include "plat_log.h"
+#include "pldm_monitor.h"
+struct pldm_platform_event_msg {
+    uint8_t format_version;
+    uint8_t tid;
+    uint8_t event_class;
+    uint8_t event_data[];
+} __attribute__((packed));
+
+struct pldm_cper_event_data1 {
+    uint8_t cper_format_version;
+    uint8_t cper_format_type;
+    uint16_t cper_data_length;
+    uint8_t cper_record[];
+} __attribute__((packed));
 
 // test command
 void cmd_test(const struct shell *shell, size_t argc, char **argv)
 {
 	shell_print(shell, "Hello world!");
+
+	// test cper
+	uint8_t eid = 0x08;
+    uint8_t resp_buf[PLDM_MAX_DATA_SIZE];
+    pldm_msg pmsg;
+    mctp *mctp_inst;
+    uint16_t resp_len;
+    bool ret;
+
+    memset(&pmsg, 0, sizeof(pmsg));
+    memset(resp_buf, 0, sizeof(resp_buf));
+
+    /*
+     * Special case:
+     * PlatformEventMessage with CPER payload.
+     * Do NOT use argv for payload to avoid SHELL_ARGC_MAX limit.
+     */
+
+	static const uint8_t cper_record[] = {
+		/* PlatformEventMessage header */
+		0x01, /* formatVersion */
+		0x01, /* TID */
+		0x07, /* eventClass = CPEREvent */
+
+		/* CPEREvent eventData */
+		0x01, /* CPER formatVersion */
+		0x00, /* formatType = Full CPER */
+		0x18, 0x01, /* eventDataLength = 280 bytes */
+		
+		/* =====================================================
+		* CPER Record Header (128 bytes, UEFI Appendix N)
+		* ===================================================== */
+		0x43, 0x50, 0x45, 0x52, /* "CPER" */
+		0x01, 0x00,             /* Revision 1.0 */
+		0xFF, 0xFF, 0xFF, 0xFF, /* SignatureEnd */
+		0x01, 0x00,             /* SectionCount = 1 */
+		0x02, 0x00, 0x00, 0x00, /* Severity = Corrected */
+		0x00, 0x00, 0x00, 0x00, /* ValidationBits */
+		0x18, 0x01, 0x00, 0x00, /* RecordLength = 280 bytes */
+
+		/* Timestamp */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* PlatformID */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* PartitionID */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* CreatorID (dummy) */
+		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
+		0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00,
+
+		/* NotifyType = CPE（Corrected Platform Error） */
+		0x96,0x2F,0x29,0x4E,
+		0x43,0xD8,
+		0x55,0x4A,
+		0xA8,0xC2,0xD4,0x81,0xF2,0x7E,0xBE,0xEE,
+
+		/* RecordID */
+		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		/* Flags */
+		0x00, 0x00, 0x00, 0x00,
+
+		/* Persistence Information */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+		/* Reserved (12 bytes) */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+
+		/* ---- Section Descriptor (72 bytes) ---- */
+		0xC8, 0x00, 0x00, 0x00, /* SectionOffset = 200 */
+		0x50, 0x00, 0x00, 0x00, /* SectionLength = 80 */
+		0x01, 0x00,             /* Revision = 1.0*/
+		0x00,                   /* ValidationBits = 0 */
+		0x00,                   /* Reserved */
+		0x00, 0x00, 0x00, 0x00, /* Flags */
+		
+		/* SectionType = Memory Error Section */
+		0x14,0x11,0xBC,0xA5,
+		0x64,0x6F,
+		0xDE,0x4E,
+		0xB8,0x63,0x3E,0x83,0xED,0x7C,0x83,0xB1,
+
+		/* FRU_ID */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+		/* FRU_Text (20 bytes) */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		
+		/* =================================================
+		* Memory Error Section Body (80 bytes)
+		* ================================================= */
+		/* ErrorStatus */
+		0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* PhysicalAddress */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* PhysicalAddressMask */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* Node, Card, Module, Bank */
+		0x00,0x00, 0x00,0x00, 0x00,0x00, 0x00,0x00,
+
+		/* Device, Row, Column, BitPosition */
+		0x00,0x00, 0x00,0x00, 0x00,0x00, 0x00,0x00,
+
+		/* RequestorID */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* ResponderID */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* TargetID */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+		/* ErrorType */
+		0x01,
+
+		/* Reserved */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+	};
+
+	static uint8_t event_buf[
+		sizeof(struct pldm_platform_event_msg) +
+		sizeof(struct pldm_cper_event_data1) + sizeof(cper_record)
+	];
+
+	struct pldm_platform_event_msg *evt = (struct pldm_platform_event_msg *)event_buf;
+	struct pldm_cper_event_data1 *cper_evt;
+
+	evt->format_version = 0x01;
+	evt->tid = 0x01;
+	evt->event_class = 0x07;  /* eventClass = CPEREvent */
+
+	cper_evt = (struct pldm_cper_event_data1 *)(evt->event_data);
+	cper_evt->cper_format_version = 0x01;/* CPER formatVersion */
+	cper_evt->cper_format_type = 0x00;/* formatType = Full CPER */
+	cper_evt->cper_data_length = sizeof(cper_record);
+
+	memcpy(cper_evt->cper_record, cper_record, sizeof(cper_record));
+	
+    pmsg.hdr.msg_type = MCTP_MSG_TYPE_PLDM;
+    pmsg.hdr.pldm_type = 0x02;
+    pmsg.hdr.cmd = 0x0A;
+    pmsg.hdr.rq = PLDM_REQUEST;
+
+	pmsg.buf = event_buf;
+	pmsg.len = sizeof(event_buf);
+
+    ret = get_mctp_info_by_eid(eid, &mctp_inst, &pmsg.ext_params);
+    if (!ret) {
+        shell_error(shell, "Failed to get mctp info by eid 0x%x", eid);
+        return;
+    }
+
+    resp_len = mctp_pldm_read(mctp_inst, &pmsg,
+                  resp_buf, sizeof(resp_buf));
+    if (!resp_len) {
+        shell_error(shell, "Failed to get mctp-pldm response");
+        return;
+    }
+
+    shell_print(shell, "RESP");
+    shell_hexdump(shell, resp_buf, resp_len);
 }
 
 void cmd_read_raw(const struct shell *shell, size_t argc, char **argv)

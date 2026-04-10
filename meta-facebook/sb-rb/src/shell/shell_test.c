@@ -34,7 +34,7 @@ struct pldm_platform_event_msg {
     uint8_t event_data[];
 } __attribute__((packed));
 
-struct pldm_cper_event_data1 {
+struct pldm_cper_event_data {
     uint8_t cper_format_version;
     uint8_t cper_format_type;
     uint16_t cper_data_length;
@@ -64,16 +64,6 @@ void cmd_test(const struct shell *shell, size_t argc, char **argv)
      */
 
 	static const uint8_t cper_record[] = {
-		/* PlatformEventMessage header */
-		0x01, /* formatVersion */
-		0x01, /* TID */
-		0x07, /* eventClass = CPEREvent */
-
-		/* CPEREvent eventData */
-		0x01, /* CPER formatVersion */
-		0x00, /* formatType = Full CPER */
-		0x18, 0x01, /* eventDataLength = 280 bytes */
-		
 		/* =====================================================
 		* CPER Record Header (128 bytes, UEFI Appendix N)
 		* ===================================================== */
@@ -136,6 +126,9 @@ void cmd_test(const struct shell *shell, size_t argc, char **argv)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
+		/* Section Severity */
+		0x00, 0x00, 0x00, 0x00,
+
 		/* FRU_Text (20 bytes) */
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -144,6 +137,9 @@ void cmd_test(const struct shell *shell, size_t argc, char **argv)
 		/* =================================================
 		* Memory Error Section Body (80 bytes)
 		* ================================================= */
+		/* Validation Bits */
+		0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
 		/* ErrorStatus */
 		0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,
 
@@ -177,17 +173,17 @@ void cmd_test(const struct shell *shell, size_t argc, char **argv)
 
 	static uint8_t event_buf[
 		sizeof(struct pldm_platform_event_msg) +
-		sizeof(struct pldm_cper_event_data1) + sizeof(cper_record)
+		sizeof(struct pldm_cper_event_data) + sizeof(cper_record)
 	];
 
 	struct pldm_platform_event_msg *evt = (struct pldm_platform_event_msg *)event_buf;
-	struct pldm_cper_event_data1 *cper_evt;
+	struct pldm_cper_event_data *cper_evt;
 
 	evt->format_version = 0x01;
 	evt->tid = 0x01;
 	evt->event_class = 0x07;  /* eventClass = CPEREvent */
 
-	cper_evt = (struct pldm_cper_event_data1 *)(evt->event_data);
+	cper_evt = (struct pldm_cper_event_data *)(evt->event_data);
 	cper_evt->cper_format_version = 0x01;/* CPER formatVersion */
 	cper_evt->cper_format_type = 0x00;/* formatType = Full CPER */
 	cper_evt->cper_data_length = sizeof(cper_record);

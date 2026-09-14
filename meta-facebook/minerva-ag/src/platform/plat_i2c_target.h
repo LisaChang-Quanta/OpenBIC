@@ -90,6 +90,15 @@ typedef enum i2c_bridge_command_error {
 	I2C_BRIDGE_COMMAND_FAILURE,
 } i2c_bridge_command_error;
 
+enum plat_command_type {
+	PLAT_CMD_SET_BOOTSTRAP,
+	PLAT_CMD_I2C_BRIDGE,
+	PLAT_CMD_SET_VOLTAGE,
+	PLAT_CMD_SET_POWER_CAPPING,
+	PLAT_CMD_SET_POWER_CAPPING_SWITCH,
+	PLAT_CMD_SET_SENSOR_POLLING,
+};
+
 void update_sensor_reading_table(void);
 void update_strap_capability_table(void);
 void plat_telemetry_table_init(void);
